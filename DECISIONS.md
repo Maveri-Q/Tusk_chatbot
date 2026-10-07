@@ -1,0 +1,8 @@
+# TUSK: Architectural Decisions & Blueprint Deviations
+
+This file tracks all technical decisions, library choices, and deviations from the initial blueprint specifications (`tusk-01` through `tusk-04`).
+
+| Date | Topic | Decision | Rationale |
+|---|---|---|---|
+| 2026-10-07 | Node.js Environment | Node.js v24.19.0 LTS with npm 11.17.0 | Installed via winget to support Next.js App Router and Walrus SDK peer dependencies. |
+| 2026-10-07 | Default Testnet Relayer | `https://relayer-staging.memory.walrus.xyz` | Defaulting to staging testnet for development to avoid mainnet asset consumption. |
