@@ -1,17 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { TopBar } from "@/components/shell/TopBar";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { MemoryLens, MemoryItem } from "@/components/lens/MemoryLens";
 import { ChatView } from "@/components/chat/ChatView";
-import { ChatMessage } from "@/components/chat/MessageBubble";
+import { ChatMessage, RecalledMemory } from "@/components/chat/MessageBubble";
 
 export default function ChatPage() {
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [advancedTools, setAdvancedTools] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [relayerStatus, setRelayerStatus] = useState<"ok" | "degraded" | "down">("ok");
 
   // Input & Messages
   const [input, setInput] = useState("");
@@ -19,33 +20,53 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Active memories state
-  const [memories, setMemories] = useState<MemoryItem[]>([
-    {
-      blob_id: "pb3xguNSyKo0zR2kocyatFB592vLUlSZ5vdLBqLsD0w",
-      text: "The walrus has two large tusks.",
-      category: "identity",
-      createdAt: "M0 Smoke Test",
-      relevance: 0.525,
-      status: "saved",
-    },
-  ]);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
 
-  // Load advanced tools preference from localStorage
+  // Fetch memories list
+  const loadMemories = useCallback(async () => {
+    try {
+      const res = await fetch("/api/memories");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.memories)) {
+          setMemories(data.memories);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load memories:", e);
+    }
+  }, []);
+
+  // Fetch relayer health
+  const checkHealth = useCallback(async () => {
+    try {
+      const res = await fetch("/api/health");
+      if (res.ok) {
+        setRelayerStatus("ok");
+      } else {
+        setRelayerStatus("degraded");
+      }
+    } catch (e) {
+      setRelayerStatus("down");
+    }
+  }, []);
+
+  // Load preferences and initial data on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem("tusk_advanced_tools");
       if (stored !== null) {
         setAdvancedTools(stored === "true");
       }
-    } catch (e) {
-      // localStorage may fail in private mode
-    }
+    } catch (e) {}
 
-    // Automatically collapse panel on small screens
     if (window.innerWidth < 1024) {
       setIsPanelOpen(false);
     }
-  }, []);
+
+    loadMemories();
+    checkHealth();
+  }, [loadMemories, checkHealth]);
 
   const handleToggleAdvancedTools = (val: boolean) => {
     setAdvancedTools(val);
@@ -94,22 +115,24 @@ export default function ChatPage() {
         throw new Error("No response body received");
       }
 
+      // Parse recalled memories from custom header
+      let recalledFromHeader: RecalledMemory[] = [];
+      const headerVal = response.headers.get("x-recalled-memories");
+      if (headerVal) {
+        try {
+          recalledFromHeader = JSON.parse(decodeURIComponent(headerVal));
+        } catch (e) {
+          console.error("Failed to parse recalled memories header:", e);
+        }
+      }
+
       // Stream the assistant response
       const assistantId = `assistant-${Date.now()}`;
       const assistantMsg: ChatMessage = {
         id: assistantId,
         role: "assistant",
         content: "",
-        recalledMemories: memoryEnabled
-          ? [
-              {
-                text: "The walrus has two large tusks.",
-                relevance: 0.88,
-                blob_id: "pb3xguNSyKo0zR2kocyatFB592vLUlSZ5vdLBqLsD0w",
-                scope: "personal",
-              },
-            ]
-          : [],
+        recalledMemories: recalledFromHeader,
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -130,6 +153,11 @@ export default function ChatPage() {
           )
         );
       }
+
+      // After chat completes, reload memories list to catch any new saves
+      setTimeout(() => {
+        loadMemories();
+      }, 5000);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
       const errorMsg: ChatMessage = {
@@ -162,6 +190,7 @@ export default function ChatPage() {
           onTogglePanel={() => setIsPanelOpen(!isPanelOpen)}
           onToggleSidebar={() => setIsSidebarMobileOpen(!isSidebarMobileOpen)}
           advancedTools={advancedTools}
+          relayerStatus={relayerStatus}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -182,6 +211,7 @@ export default function ChatPage() {
             onClose={() => setIsPanelOpen(false)}
             advancedTools={advancedTools}
             memories={memories}
+            onRefreshMemories={loadMemories}
           />
         </div>
       </div>

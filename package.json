@@ -16,6 +16,7 @@
   "dependencies": {
     "@ai-sdk/google": "^4.0.90",
     "@ai-sdk/react": "^4.0.134",
+    "@clerk/nextjs": "^7.9.11",
     "@mysten-incubation/memwal": "^0.1.8",
     "@mysten/seal": "^1.4.19",
     "@mysten/sui": "^2.35.0",
@@ -33,6 +34,8 @@
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@upstash/ratelimit": "^2.2.0",
+    "@upstash/redis": "^1.39.0",
     "ai": "^7.0.131",
     "autoprefixer": "^10.6.1",
     "class-variance-authority": "^0.7.1",
