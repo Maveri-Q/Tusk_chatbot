@@ -17,6 +17,12 @@ const config: Config = {
         "border-strong": "var(--border-strong)",
         text: "var(--text)",
         "text-muted": "var(--text-muted)",
+        emerald: {
+          soft: "var(--emerald-soft)",
+          light: "var(--mint-light)",
+          deep: "var(--emerald-deep)",
+          pale: "var(--mint-pale)",
+        },
         flare: {
           DEFAULT: "var(--flare)",
           foreground: "var(--on-flare)",
@@ -33,7 +39,9 @@ const config: Config = {
         sm: "var(--radius-sm)",
       },
       boxShadow: {
-        "glow-memory": "var(--glow-memory)",
+        tactile: "0 20px 48px -12px rgba(23, 25, 28, 0.07), 0 2px 6px -1px rgba(23, 25, 28, 0.04)",
+        "tactile-hover": "0 28px 60px -16px rgba(23, 25, 28, 0.10), 0 4px 12px -2px rgba(23, 25, 28, 0.06)",
+        subtle: "0 1px 3px 0 rgba(23, 25, 28, 0.05)",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "sans-serif"],

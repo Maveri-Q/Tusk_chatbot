@@ -3,72 +3,100 @@
 @tailwind utilities;
 
 :root {
-  --bg: #120D0B;            /* page: warm near-black brown */
-  --bg-elev: #1A1310;       /* panels */
-  --bg-elev-2: #251B16;     /* cards, inputs */
-  --border: rgba(246, 238, 224, 0.10);
-  --border-strong: rgba(246, 238, 224, 0.20);
-  --text: #F6EEE0;          /* tusk ivory */
-  --text-muted: #A99B8C;
-  --flare: #FF6A2B;         /* primary accent: buttons, user bubbles, focus rings, links */
-  --on-flare: #1A0E08;      /* text on flare (dark, for contrast) */
-  --lime: #C4F24A;          /* memory accent: saved/stored states, Memory ON, relevance bars */
-  --on-lime: #12180A;       /* text on lime */
-  --warn: #FFC857;
-  --danger: #FF4D6D;        /* blocked / security */
-  --glow-memory: 0 0 20px rgba(196, 242, 74, 0.35);   /* used on the "Memory saved" pill only */
-  --radius: 16px;
+  /* Warm off-white foundation */
+  --bg: #F7F7F5;
+  --bg-elev: #FFFFFF;
+  --bg-elev-2: #F0EFEA;
+
+  /* Typography */
+  --text: #17191C;
+  --text-muted: #6F7378;
+
+  /* Restrained Emerald & Mint Accent Family */
+  --emerald-soft: #42C98A;
+  --mint-light: #8DE8BF;
+  --emerald-deep: #167A55;
+  --mint-pale: #C8F5DE;
+
+  /* Semantic fallbacks for existing UI elements */
+  --flare: #17191C;
+  --on-flare: #F7F7F5;
+  --lime: #167A55;
+  --on-lime: #F7F7F5;
+
+  /* Borders & Separation */
+  --border: rgba(23, 25, 28, 0.08);
+  --border-strong: rgba(23, 25, 28, 0.16);
+
+  /* Status */
+  --warn: #D9822B;
+  --danger: #D13B53;
+
+  /* Geometry */
+  --radius: 18px;
   --radius-sm: 10px;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ambient background gradients */
+/* Tactile Grain Layer 1: Page-wide microscopic mineral texture */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 0;
-  background: 
-    radial-gradient(circle 800px at 0% 0%, rgba(255, 106, 43, 0.10), transparent 70%),
-    radial-gradient(circle 800px at 100% 100%, rgba(196, 242, 74, 0.05), transparent 70%);
+  z-index: 99;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  mix-blend-mode: multiply;
 }
 
-/* Accessible focus outline */
+/* Subtle selection */
+::selection {
+  background-color: var(--mint-pale);
+  color: var(--emerald-deep);
+}
+
+/* Accessible focus ring */
 *:focus-visible {
-  outline: 2px solid var(--flare);
+  outline: 2px solid var(--emerald-soft);
   outline-offset: 2px;
 }
 
-/* Glass layer style for floating panels */
-.glass-panel {
-  background-color: rgba(246, 238, 224, 0.05);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+/* Tactile surface */
+.surface-tactile {
+  background-color: var(--bg-elev);
   border: 1px solid var(--border);
-  box-shadow: inset 0 1px 0 0 rgba(246, 238, 224, 0.1);
+  box-shadow: 0 20px 48px -12px rgba(23, 25, 28, 0.06), 0 2px 6px -1px rgba(23, 25, 28, 0.03);
+}
+
+/* Quiet mineral hairline border */
+.border-mineral {
+  border-color: var(--border);
 }
 
 /* Custom scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(246, 238, 224, 0.15);
+  background: rgba(23, 25, 28, 0.12);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(246, 238, 224, 0.25);
+  background: rgba(23, 25, 28, 0.22);
 }
