@@ -155,5 +155,5 @@ export async function getSecurityLog(userId: string): Promise<SecurityLogEntry[]
     }
   }
   const rawList = memorySecLogList.get(userId) || [];
-  return rawList.map((item) => JSON.parse(item));
+  return rawList.map((item: string) => JSON.parse(item));
 }
