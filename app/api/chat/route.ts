@@ -1,5 +1,6 @@
 import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
+import { wrapModelWithMemWal } from "@/lib/memwal";
 
 export async function POST(req: Request) {
   try {
@@ -15,14 +16,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const modelId = process.env.TUSK_MODEL_ID || "gemini-1.5-flash";
+    const modelId = process.env.TUSK_MODEL_ID || "gemini-3.8-flash";
+    let model = google(modelId);
+
+    // M2 Quick-Win: wrap model with withMemWal if memory is enabled
+    if (memoryEnabled !== false) {
+      model = wrapModelWithMemWal(model, "default_user");
+    }
 
     const systemPrompt = `You are Tusk, a warm, quick-witted assistant with long-term memory.
 Be concise and natural. Use what you remember when it helps; do not recite
 memories unprompted or make the user feel watched.`;
 
     const result = streamText({
-      model: google(modelId),
+      model,
       system: systemPrompt,
       messages,
     });
