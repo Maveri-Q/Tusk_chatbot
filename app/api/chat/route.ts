@@ -294,40 +294,9 @@ export async function POST(req: Request) {
       try {
         const immediateFacts = extractFastFacts(lastUserMsg);
         for (const fact of immediateFacts) {
-          // Skip if exact text is the same as the full user message we just recorded
           if (fact.text.toLowerCase().trim() === lastUserMsg.toLowerCase().trim()) continue;
-
-          (async () => {
-            try {
-              const screened = await screenWriteFact(userId, fact.text);
-              if (screened.allowed) {
-                const saveRes = await rememberFactSafely(screened.sanitizedText, namespace, fact.category);
-                if (saveRes.success && saveRes.blob_id) {
-                  await setMemoryMetadata(userId, saveRes.blob_id, {
-                    category: fact.category,
-                    createdAt: new Date().toISOString(),
-                    scope: "personal",
-                    jobId: saveRes.job_id,
-                  });
-                }
-              }
-            } catch (_) {}
-          })();
-        }
-      } catch (_) {}
-
-      // 6c. Deep extraction for conversational nuances via Gemini
-      (async () => {
-        try {
-          const facts = await extractDurableFacts(lastUserMsg);
-
-          for (const fact of facts) {
-            if (fact.risk === "suspicious") continue;
-            if (fact.text.toLowerCase().trim() === lastUserMsg.toLowerCase().trim()) continue;
-
-            const screened = await screenWriteFact(userId, fact.text);
-            if (!screened.allowed) continue;
-
+          const screened = await screenWriteFact(userId, fact.text);
+          if (screened.allowed) {
             const saveRes = await rememberFactSafely(screened.sanitizedText, namespace, fact.category);
             if (saveRes.success && saveRes.blob_id) {
               await setMemoryMetadata(userId, saveRes.blob_id, {
@@ -338,10 +307,8 @@ export async function POST(req: Request) {
               });
             }
           }
-        } catch (err) {
-          console.error("Background fact extraction and store error:", err);
         }
-      })();
+      } catch (_) {}
     }
 
     // 7. Multi-model resilient streaming engine with zero-token auto-recovery

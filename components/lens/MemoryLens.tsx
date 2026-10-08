@@ -60,8 +60,6 @@ export function MemoryLens({
   userId = "alice",
 }: MemoryLensProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [newFactText, setNewFactText] = useState("");
-  const [isAddingFact, setIsAddingFact] = useState(false);
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [securityLogs, setSecurityLogs] = useState<SecurityLogItem[]>([]);
@@ -97,29 +95,6 @@ export function MemoryLens({
   }, [advancedTools, isOpen]);
 
   if (!isOpen) return null;
-
-  const handleAddFact = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = newFactText.trim();
-    if (!trimmed || isAddingFact) return;
-
-    setIsAddingFact(true);
-    try {
-      const res = await fetch("/api/memories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed, userId }),
-      });
-      if (res.ok) {
-        setNewFactText("");
-        if (onRefreshMemories) onRefreshMemories();
-      }
-    } catch (err) {
-      console.error("Add fact error:", err);
-    } finally {
-      setIsAddingFact(false);
-    }
-  };
 
   const toggleDetails = (id: string) => {
     setExpandedDetails((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -206,26 +181,6 @@ export function MemoryLens({
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3">
-        {/* Quick Add Fact Input */}
-        <form onSubmit={handleAddFact} className="flex gap-1.5 items-center">
-          <Input
-            type="text"
-            placeholder="Add fact (e.g. I prefer dark mode)..."
-            value={newFactText}
-            onChange={(e) => setNewFactText(e.target.value)}
-            disabled={isAddingFact}
-            className="h-8 text-xs bg-bg-elev-2 flex-1 border-border focus:border-[#167A55]"
-          />
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!newFactText.trim() || isAddingFact}
-            className="h-8 px-2.5 text-xs bg-[#167A55] hover:bg-[#126344] text-white shrink-0 font-medium shadow-xs"
-          >
-            {isAddingFact ? "Saving..." : "Add"}
-          </Button>
-        </form>
-
         {/* Search box (visible if 4 or more memories) */}
         {memories.length >= 4 && (
           <div className="relative">

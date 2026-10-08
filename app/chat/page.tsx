@@ -45,6 +45,18 @@ export default function ChatPage() {
   // Fetch memories list for the current user's namespace
   const loadMemories = useCallback(async (userIdToLoad?: string) => {
     const uid = userIdToLoad || currentUser.id;
+
+    // Instant local cache restore so panel never flashes empty on reload
+    try {
+      const cached = localStorage.getItem(`tusk_memories_${uid}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMemories((prev) => (prev.length === 0 ? parsed : prev));
+        }
+      }
+    } catch (_) {}
+
     try {
       const res = await fetch(`/api/memories?userId=${encodeURIComponent(uid)}&t=${Date.now()}`, {
         cache: "no-store",
@@ -54,6 +66,9 @@ export default function ChatPage() {
         const data = await res.json();
         if (Array.isArray(data.memories)) {
           setMemories(data.memories);
+          try {
+            localStorage.setItem(`tusk_memories_${uid}`, JSON.stringify(data.memories));
+          } catch (_) {}
         }
       }
     } catch (e) {
@@ -423,14 +438,53 @@ export default function ChatPage() {
       );
       persistSessions(updatedSessions);
 
-      // Refresh memories list: immediately for fast-path 0ms facts + staggered for async Walrus sync
+      // Run separate extraction call after each chat exchange
+      const lastUserMsg = currentMsgs.filter((m) => m.role === "user").pop();
+      const lastUserMsgContent = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+
+      if (memoryEnabled && lastUserMsgContent.trim()) {
+        (async () => {
+          try {
+            console.log("[Extraction Client] Running separate extraction call for:", lastUserMsgContent);
+            const extRes = await fetch("/api/memories/extract", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                userMessage: lastUserMsgContent,
+                assistantMessage: finalContent,
+                userId: currentUser.id,
+              }),
+            });
+
+            if (extRes.ok) {
+              const extData = await extRes.json();
+              console.log("[Extraction Client] Extraction response received:", extData);
+              if (Array.isArray(extData.newMemories) && extData.newMemories.length > 0) {
+                // Update panel's list right after saving so a manual refresh isn't needed
+                setMemories((prev) => {
+                  const newBlobIds = new Set(extData.newMemories.map((m: any) => m.blob_id));
+                  const remaining = prev.filter((m) => !newBlobIds.has(m.blob_id));
+                  const combined = [...extData.newMemories, ...remaining];
+                  try {
+                    localStorage.setItem(`tusk_memories_${currentUser.id}`, JSON.stringify(combined));
+                  } catch (_) {}
+                  return combined;
+                });
+              }
+            }
+          } catch (extErr) {
+            console.error("[Extraction Client Error] Extraction call failed:", extErr);
+          } finally {
+            loadMemories(currentUser.id);
+          }
+        })();
+      }
+
+      // Refresh memories list
       loadMemories(currentUser.id);
       setTimeout(() => {
         loadMemories(currentUser.id);
       }, 1200);
-      setTimeout(() => {
-        loadMemories(currentUser.id);
-      }, 4000);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
       const errorMsgText = `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`;

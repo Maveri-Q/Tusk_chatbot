@@ -48,43 +48,56 @@ export interface StoredFactItem {
 }
 
 // Persistent Disk Helper to survive worker reloads & ensure 0ms availability
-function getMemoryFilePath(namespace: string): string | null {
-  try {
-    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production");
-    const baseDir = isServerless ? path.join(os.tmpdir(), "tusk_data") : path.join(process.cwd(), ".data");
-    const dir = path.join(baseDir, "memories");
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    const safeName = namespace.replace(/[^a-zA-Z0-9_-]/g, "_");
-    return path.join(dir, `${safeName}.json`);
-  } catch (_) {
-    return null;
-  }
+function getMemoryFilePaths(namespace: string): { primary: string; fallback: string } {
+  const safeName = namespace.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const primaryDir = path.join(process.cwd(), ".data", "memories");
+  const fallbackDir = path.join(os.tmpdir(), "tusk_data", "memories");
+  return {
+    primary: path.join(primaryDir, `${safeName}.json`),
+    fallback: path.join(fallbackDir, `${safeName}.json`),
+  };
 }
 
 function readDiskMemories(namespace: string): StoredFactItem[] {
+  const { primary, fallback } = getMemoryFilePaths(namespace);
   try {
-    const file = getMemoryFilePath(namespace);
-    if (file && fs.existsSync(file)) {
-      const data = JSON.parse(fs.readFileSync(file, "utf8"));
-      if (Array.isArray(data)) return data;
+    if (fs.existsSync(/*turbopackIgnore: true*/ primary)) {
+      const data = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ primary, "utf8"));
+      if (Array.isArray(data) && data.length > 0) return data;
     }
-  } catch (e) {
-    // Non-fatal fallback to in-memory map
-  }
+  } catch (_) {}
+
+  try {
+    if (fs.existsSync(/*turbopackIgnore: true*/ fallback)) {
+      const data = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ fallback, "utf8"));
+      if (Array.isArray(data) && data.length > 0) return data;
+    }
+  } catch (_) {}
+
   return [];
 }
 
 function writeDiskMemories(namespace: string, items: StoredFactItem[]) {
+  const { primary, fallback } = getMemoryFilePaths(namespace);
+  const jsonStr = JSON.stringify(items, null, 2);
+
+  // Write to primary (.data/memories)
   try {
-    const file = getMemoryFilePath(namespace);
-    if (file) {
-      fs.writeFileSync(file, JSON.stringify(items, null, 2), "utf8");
+    const primaryDir = path.dirname(primary);
+    if (!fs.existsSync(primaryDir)) {
+      fs.mkdirSync(primaryDir, { recursive: true });
     }
-  } catch (e) {
-    // Non-fatal: in-memory map handles persistence for worker lifetime
-  }
+    fs.writeFileSync(primary, jsonStr, "utf8");
+  } catch (_) {}
+
+  // Also write to fallback (os.tmpdir)
+  try {
+    const fallbackDir = path.dirname(fallback);
+    if (!fs.existsSync(fallbackDir)) {
+      fs.mkdirSync(fallbackDir, { recursive: true });
+    }
+    fs.writeFileSync(fallback, jsonStr, "utf8");
+  } catch (_) {}
 }
 
 // Global instant facts store across Next.js worker reloads
