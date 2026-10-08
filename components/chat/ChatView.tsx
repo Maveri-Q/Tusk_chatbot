@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { MessageBubble, ChatMessage } from "./MessageBubble";
 import { StarterChips } from "./StarterChips";
-import { Composer } from "./Composer";
+import { Composer, ComposerAttachment } from "./Composer";
 import { Sparkles, ArrowDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -11,11 +11,12 @@ interface ChatViewProps {
   messages: ChatMessage[];
   input: string;
   onInputChange: (val: string) => void;
-  onSubmit: () => void;
+  onSubmit: (attachments?: ComposerAttachment[]) => void;
   isLoading: boolean;
   memoryEnabled: boolean;
   onToggleMemory: (val: boolean) => void;
   userDisplayName?: string;
+  showMemoryBadges?: boolean;
 }
 
 export function ChatView({
@@ -27,6 +28,7 @@ export function ChatView({
   memoryEnabled,
   onToggleMemory,
   userDisplayName = "Explorer",
+  showMemoryBadges = false,
 }: ChatViewProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -91,7 +93,13 @@ export function ChatView({
             <StarterChips onSelect={(prompt) => onInputChange(prompt)} />
           </div>
         ) : (
-          messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+          messages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              showMemoryBadges={showMemoryBadges}
+            />
+          ))
         )}
       </div>
 

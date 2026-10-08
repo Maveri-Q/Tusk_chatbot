@@ -34,6 +34,8 @@ interface SidebarProps {
   onToggleAdvancedTools: (val: boolean) => void;
   userDisplayName?: string;
   userNamespace?: string;
+  userEmail?: string;
+  isLoggedIn?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
   isOpenMobile?: boolean;
@@ -50,6 +52,8 @@ export function Sidebar({
   onToggleAdvancedTools,
   userDisplayName = "Explorer",
   userNamespace = "personal:default",
+  userEmail,
+  isLoggedIn = false,
   onOpenAuth,
   onLogout,
   isOpenMobile = false,
@@ -154,72 +158,51 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Bottom: Advanced tools switch and Account Menu */}
-        <div className="p-4 border-t border-border bg-bg-elev flex flex-col gap-3 shrink-0">
-          {/* Advanced Tools Toggle Switch */}
-          <div className="rounded-lg bg-bg-elev-2 p-3 border border-border flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <label
-                htmlFor="advanced-tools-toggle"
-                className="text-xs font-medium text-text cursor-pointer flex items-center gap-1.5"
-              >
-                <Sliders className="h-3.5 w-3.5 text-flare" />
-                Advanced tools
-              </label>
-              <Switch
-                id="advanced-tools-toggle"
-                checked={advancedTools}
-                onCheckedChange={onToggleAdvancedTools}
-              />
-            </div>
-            <p className="text-[11px] text-text-muted leading-relaxed">
-              Shows security log, attack demo, and relayer network status.
-            </p>
-          </div>
-
-          <Separator />
-
-          {/* User Account / Login & Logout Section */}
+        {/* Bottom: Clean User Account Section */}
+        <div className="p-4 border-t border-border bg-bg-elev shrink-0">
           <div className="p-2.5 rounded-xl bg-bg-elev-2 border border-border flex items-center justify-between">
-            <div
-              onClick={onOpenAuth}
-              className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
-            >
-              <Avatar className="h-8 w-8 bg-flare/10 border-flare/30">
-                <AvatarFallback className="text-flare font-medium text-xs">
-                  {userDisplayName.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs font-semibold text-text truncate group-hover:text-[#167A55] transition-colors">
-                  {userDisplayName}
-                </span>
-                <span className="text-[10px] text-text-muted font-mono truncate">
-                  {userNamespace}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onOpenAuth}
-                className="h-7 px-2 text-[11px] text-[#167A55] hover:bg-[#C8F5DE]/40"
-                title="Switch account"
-              >
-                Switch
-              </Button>
-              {onLogout && (
-                <button
-                  onClick={onLogout}
-                  className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Sign out"
+            {isLoggedIn ? (
+              <>
+                <div
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+                  <Avatar className="h-8 w-8 bg-[#167A55]/15 border border-[#167A55]/30">
+                    <AvatarFallback className="text-[#167A55] font-semibold text-xs">
+                      {userDisplayName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-semibold text-text truncate group-hover:text-[#167A55] transition-colors">
+                      {userDisplayName}
+                    </span>
+                    <span className="text-[10px] text-text-muted font-mono truncate">
+                      {userEmail || userNamespace}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {onLogout && (
+                    <button
+                      onClick={onLogout}
+                      className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                      title="Sign out"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={onOpenAuth}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#17191C] hover:bg-[#167A55] text-white text-xs font-medium transition-all shadow-xs"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Sign In (Google / Email)</span>
+              </button>
+            )}
           </div>
         </div>
       </aside>

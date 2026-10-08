@@ -6,21 +6,30 @@ import { Sidebar, ChatSession } from "@/components/shell/Sidebar";
 import { MemoryLens, MemoryItem } from "@/components/lens/MemoryLens";
 import { ChatView } from "@/components/chat/ChatView";
 import { ChatMessage, RecalledMemory } from "@/components/chat/MessageBubble";
-import { AuthModal, UserProfile, PRESET_USERS } from "@/components/auth/AuthModal";
+import { ComposerAttachment } from "@/components/chat/Composer";
+import { AuthModal, UserProfile } from "@/components/auth/AuthModal";
 
 interface StoredSession extends ChatSession {
   messages: ChatMessage[];
 }
 
+const GUEST_USER: UserProfile = {
+  id: "guest",
+  name: "Guest",
+  email: "",
+  provider: "guest",
+};
+
 export default function ChatPage() {
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  // Memory Lens panel closed/hidden by default as requested
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [advancedTools, setAdvancedTools] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [relayerStatus, setRelayerStatus] = useState<"ok" | "degraded" | "down">("ok");
 
-  // User Profile & Authentication State
-  const [currentUser, setCurrentUser] = useState<UserProfile>(PRESET_USERS[0]);
+  // User Profile & Authentication State (Defaults to Guest or loaded active user)
+  const [currentUser, setCurrentUser] = useState<UserProfile>(GUEST_USER);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Persistent Sessions & Active Messages
@@ -63,7 +72,7 @@ export default function ChatPage() {
     }
   }, []);
 
-  // Save sessions to localStorage helper
+  // Save sessions to localStorage & sync to server helper
   const persistSessions = (newSessions: StoredSession[], userId = currentUser.id) => {
     setSessions(newSessions);
     try {
@@ -71,10 +80,20 @@ export default function ChatPage() {
     } catch (e) {
       console.error("Failed to save sessions to localStorage:", e);
     }
+
+    // Sync to server for cross-device persistence
+    if (userId && userId !== "guest") {
+      fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, sessions: newSessions }),
+      }).catch(() => {});
+    }
   };
 
-  // Load user sessions from localStorage helper
-  const loadUserSessions = useCallback((userId: string) => {
+  // Load user sessions from localStorage & server helper
+  const loadUserSessions = useCallback(async (userId: string) => {
+    let loaded = false;
     try {
       const raw = localStorage.getItem(`tusk_sessions_${userId}`);
       if (raw) {
@@ -83,62 +102,74 @@ export default function ChatPage() {
           setSessions(parsed);
           setActiveSessionId(parsed[0].id);
           setMessages(parsed[0].messages || []);
-          return;
+          loaded = true;
         }
       }
     } catch (e) {
       console.error("Failed to load sessions:", e);
     }
 
-    // Default: create an initial session for this user
-    const initialSession: StoredSession = {
-      id: `sess_${Date.now()}`,
-      title: "New Conversation",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [],
-    };
-    persistSessions([initialSession], userId);
-    setActiveSessionId(initialSession.id);
-    setMessages([]);
+    // Also fetch from server to sync sessions across devices
+    if (userId && userId !== "guest") {
+      try {
+        const res = await fetch(`/api/sessions?userId=${encodeURIComponent(userId)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.sessions) && data.sessions.length > 0) {
+            setSessions(data.sessions);
+            setActiveSessionId(data.sessions[0].id);
+            setMessages(data.sessions[0].messages || []);
+            try {
+              localStorage.setItem(`tusk_sessions_${userId}`, JSON.stringify(data.sessions));
+            } catch (_) {}
+            return;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load sessions from server:", e);
+      }
+    }
+
+    if (!loaded) {
+      // Default: create an initial session for this user
+      const initialSession: StoredSession = {
+        id: `sess_${Date.now()}`,
+        title: "New Conversation",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        messages: [],
+      };
+      persistSessions([initialSession], userId);
+      setActiveSessionId(initialSession.id);
+      setMessages([]);
+    }
   }, []);
 
   // Mount effect: load user, sessions, memories, and health
   useEffect(() => {
+    let activeUid = "guest";
     try {
       const storedUser = localStorage.getItem("tusk_active_user");
       if (storedUser) {
         const parsed = JSON.parse(storedUser);
         if (parsed?.id) {
           setCurrentUser(parsed);
-          loadUserSessions(parsed.id);
-          loadMemories(parsed.id);
-        } else {
-          loadUserSessions(PRESET_USERS[0].id);
-          loadMemories(PRESET_USERS[0].id);
+          activeUid = parsed.id;
         }
-      } else {
-        loadUserSessions(PRESET_USERS[0].id);
-        loadMemories(PRESET_USERS[0].id);
       }
 
       const storedTools = localStorage.getItem("tusk_advanced_tools");
       if (storedTools !== null) {
         setAdvancedTools(storedTools === "true");
       }
-    } catch (e) {
-      loadUserSessions(PRESET_USERS[0].id);
-      loadMemories(PRESET_USERS[0].id);
-    }
+    } catch (e) {}
 
-    if (window.innerWidth < 1024) {
-      setIsPanelOpen(false);
-    }
-
+    loadUserSessions(activeUid);
+    loadMemories(activeUid);
     checkHealth();
   }, [loadMemories, checkHealth, loadUserSessions]);
 
-  // Handle switching users
+  // Handle switching/logging in user
   const handleSelectUser = (user: UserProfile) => {
     setCurrentUser(user);
     try {
@@ -151,8 +182,16 @@ export default function ChatPage() {
     setInput("");
   };
 
+  // Log out: clear active user, reset to Guest
   const handleLogout = () => {
-    setIsAuthModalOpen(true);
+    try {
+      localStorage.removeItem("tusk_active_user");
+    } catch (e) {}
+    setCurrentUser(GUEST_USER);
+    loadUserSessions("guest");
+    loadMemories("guest");
+    setMessages([]);
+    setInput("");
   };
 
   const handleToggleAdvancedTools = (val: boolean) => {
@@ -213,15 +252,27 @@ export default function ChatPage() {
     }
   };
 
-  // Submit message in active session
-  const handleSubmit = async () => {
-    if (!input.trim() || isLoading) return;
+  // Submit message in active session (supports text and multimodal attachments)
+  const handleSubmit = async (attachments?: ComposerAttachment[]) => {
+    if ((!input.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
 
     const userText = input.trim();
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: userText,
+      content:
+        userText ||
+        (attachments && attachments.length > 0
+          ? `Uploaded ${attachments.length} file(s)`
+          : ""),
+      attachments: attachments?.map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        size: a.size,
+        dataUrl: a.dataUrl,
+        textContent: a.textContent,
+      })),
     };
 
     const assistantId = `assistant-${Date.now()}`;
@@ -241,7 +292,9 @@ export default function ChatPage() {
     // Update session title if this is the first message
     let sessionTitle = sessions.find((s) => s.id === activeSessionId)?.title || "Conversation";
     if (sessionTitle === "New Conversation") {
-      sessionTitle = userText.length > 28 ? `${userText.slice(0, 28)}...` : userText;
+      const titleCandidate =
+        userText || (attachments?.[0]?.name ? `File: ${attachments[0].name}` : "Conversation");
+      sessionTitle = titleCandidate.length > 28 ? `${titleCandidate.slice(0, 28)}...` : titleCandidate;
     }
 
     try {
@@ -252,9 +305,13 @@ export default function ChatPage() {
           messages: currentMsgs.map((m) => ({
             role: m.role,
             content: m.content,
+            attachments: m.attachments,
           })),
           memoryEnabled,
           userId: currentUser.id,
+          userName: currentUser.name,
+          userEmail: currentUser.email,
+          isLoggedIn: currentUser.id !== "guest",
         }),
       });
 
@@ -309,7 +366,7 @@ export default function ChatPage() {
 
       const finalContent =
         accumulated.replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "").trimStart() ||
-        "I received your message. Let me know what you would like to remember or explore.";
+        "I received your message. Let me know what you would like to explore or remember.";
 
       // Finalize and persist messages in the active session
       const finalMsgList: ChatMessage[] = [
@@ -373,6 +430,8 @@ export default function ChatPage() {
     }
   };
 
+  const isLoggedIn = currentUser.id !== "guest";
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg">
       {/* Account & Namespace Modal */}
@@ -381,9 +440,7 @@ export default function ChatPage() {
         onClose={() => setIsAuthModalOpen(false)}
         currentUser={currentUser}
         onSelectUser={handleSelectUser}
-        onLogout={() => {
-          handleSelectUser(PRESET_USERS[0]);
-        }}
+        onLogout={handleLogout}
       />
 
       {/* Sidebar with Persistent Sessions and Account Controls */}
@@ -395,8 +452,10 @@ export default function ChatPage() {
         onDeleteSession={handleDeleteSession}
         advancedTools={advancedTools}
         onToggleAdvancedTools={handleToggleAdvancedTools}
-        userDisplayName={currentUser.name}
-        userNamespace={`personal:${currentUser.id}`}
+        userDisplayName={isLoggedIn ? currentUser.name : "Guest"}
+        userNamespace={isLoggedIn ? `personal:${currentUser.id}` : "guest"}
+        userEmail={currentUser.email}
+        isLoggedIn={isLoggedIn}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         isOpenMobile={isSidebarMobileOpen}
@@ -410,13 +469,15 @@ export default function ChatPage() {
           onTogglePanel={() => setIsPanelOpen(!isPanelOpen)}
           onToggleSidebar={() => setIsSidebarMobileOpen(!isSidebarMobileOpen)}
           advancedTools={advancedTools}
+          onToggleAdvancedTools={() => handleToggleAdvancedTools(!advancedTools)}
           relayerStatus={relayerStatus}
-          userDisplayName={currentUser.name}
+          userDisplayName={isLoggedIn ? currentUser.name : "Sign In"}
+          isLoggedIn={isLoggedIn}
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Center Chat View */}
+          {/* Center Chat View: Memory badges hidden by default */}
           <ChatView
             messages={messages}
             input={input}
@@ -425,10 +486,11 @@ export default function ChatPage() {
             isLoading={isLoading}
             memoryEnabled={memoryEnabled}
             onToggleMemory={setMemoryEnabled}
-            userDisplayName={currentUser.name}
+            userDisplayName={isLoggedIn ? currentUser.name : "Explorer"}
+            showMemoryBadges={advancedTools}
           />
 
-          {/* Memory Lens Right Panel */}
+          {/* Memory Lens Right Panel: Hidden by default */}
           <MemoryLens
             isOpen={isPanelOpen}
             onClose={() => setIsPanelOpen(false)}

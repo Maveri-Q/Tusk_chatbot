@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Brain, ChevronDown, Copy, Check } from "lucide-react";
+import { Brain, ChevronDown, Copy, Check, FileText, Image as ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface RecalledMemory {
@@ -13,24 +13,73 @@ export interface RecalledMemory {
   scope?: "personal" | "room";
 }
 
+export interface AttachmentItem {
+  id: string;
+  name: string;
+  type: "image" | "document";
+  size?: number;
+  dataUrl?: string; // base64 data for images
+  textContent?: string; // extracted text content for docs
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: AttachmentItem[];
   recalledMemories?: RecalledMemory[];
 }
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  showMemoryBadges?: boolean;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="my-3 rounded-xl overflow-hidden border border-[rgba(23,25,28,0.15)] dark:border-white/10 bg-[#121417] text-[#F7F7F5] shadow-sm not-prose">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1A1D21] border-b border-white/5 text-[11px] font-mono text-[#8DE8BF]">
+        <span className="uppercase font-semibold tracking-wider">{language || "code"}</span>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
+          title="Copy code"
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3 text-[#42C98A]" />
+              <span className="text-[#42C98A] font-medium">Copied!</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              <span>Copy</span>
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="p-3.5 overflow-x-auto text-xs font-mono leading-relaxed bg-[#121417] text-[#E6EDF3]">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+export function MessageBubble({ message, showMemoryBadges = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [showRecalled, setShowRecalled] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   const memories = message.recalledMemories || [];
+  const attachments = message.attachments || [];
 
   return (
     <div
@@ -51,15 +100,54 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         </div>
       )}
 
-      {/* Bubble */}
+      {/* Bubble Container */}
       <div
         className={cn(
-          "rounded-sm text-sm leading-relaxed p-3.5 transition-all",
+          "rounded-2xl text-sm leading-relaxed p-4 transition-all shadow-sm",
           isUser
-            ? "bg-flare text-flare-foreground font-medium rounded-tr-none shadow-sm max-w-[85%]"
-            : "bg-bg-elev-2 text-text border border-border rounded-tl-none max-w-full"
+            ? "bg-[#17191C] text-[#F7F7F5] font-normal rounded-tr-sm max-w-[85%]"
+            : "bg-bg-elev-2 text-text border border-border rounded-tl-sm max-w-full"
         )}
       >
+        {/* Render Attachments if user uploaded images/documents */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3 pb-2 border-b border-white/15">
+            {attachments.map((att) => (
+              <div
+                key={att.id}
+                className="flex items-center gap-2 p-1.5 rounded-lg bg-white/10 border border-white/10 text-xs"
+              >
+                {att.type === "image" && att.dataUrl ? (
+                  <div className="flex flex-col gap-1">
+                    <img
+                      src={att.dataUrl}
+                      alt={att.name}
+                      className="max-h-36 max-w-xs rounded object-cover border border-white/20"
+                    />
+                    <span className="text-[10px] text-gray-300 truncate max-w-[150px]">
+                      {att.name}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-1">
+                    <FileText className="h-4 w-4 text-[#8DE8BF]" />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium truncate max-w-[160px]">
+                        {att.name}
+                      </span>
+                      {att.size && (
+                        <span className="text-[10px] text-gray-300">
+                          {Math.round(att.size / 1024)} KB
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {isUser ? (
           <div className="whitespace-pre-wrap">{message.content}</div>
         ) : !message.content ? (
@@ -70,16 +158,43 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             <span className="ml-1.5 font-mono text-[11px] text-text-muted">Thinking...</span>
           </div>
         ) : (
-          <div className="prose prose-invert max-w-none text-sm leading-relaxed [&>p]:mb-2 [&>p:last-child]:mb-0 [&>pre]:bg-bg [&>pre]:p-3 [&>pre]:rounded-sm [&>pre]:border [&>pre]:border-border [&>code]:font-mono [&>code]:text-xs">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <div className="prose prose-neutral dark:prose-invert max-w-none text-sm leading-relaxed [&>p]:mb-3 [&>p:last-child]:mb-0">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({ node, inline, className, children, ...props }: any) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const codeString = String(children).replace(/\n$/, "");
+                  if (!inline && (match || codeString.includes("\n"))) {
+                    return (
+                      <CodeBlock
+                        language={match ? match[1] : ""}
+                        code={codeString}
+                      />
+                    );
+                  }
+                  return (
+                    <code
+                      className={cn(
+                        "bg-black/5 dark:bg-white/10 px-1.5 py-0.5 rounded text-[12px] font-mono text-[#167A55] dark:text-[#8DE8BF]",
+                        className
+                      )}
+                      {...props}
+                    >
+                      {children}
+                    </code>
+                  );
+                },
+              }}
+            >
               {message.content}
             </ReactMarkdown>
           </div>
         )}
       </div>
 
-      {/* Recalled Memories Row (Assistant only) */}
-      {!isUser && memories.length > 0 && (
+      {/* Recalled Memories Row: Hidden by default; only shown when showMemoryBadges=true (e.g. dev mode) */}
+      {!isUser && showMemoryBadges && memories.length > 0 && (
         <div className="flex flex-col gap-2 mt-1 w-full pl-1">
           <button
             onClick={() => setShowRecalled(!showRecalled)}
@@ -98,7 +213,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           </button>
 
           {showRecalled && (
-            <div className="rounded-sm bg-bg-elev border border-border p-3 flex flex-col gap-2 w-full animate-in fade-in-0 duration-150">
+            <div className="rounded-xl bg-bg-elev border border-border p-3 flex flex-col gap-2 w-full animate-in fade-in-0 duration-150">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-medium text-text-muted">
                   Recalled context used in this answer:

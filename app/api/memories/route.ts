@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recallMemoriesSafely, getInstantFacts } from "@/lib/memwal";
+import { recallMemoriesSafely, getInstantFacts, getAllUserMemories } from "@/lib/memwal";
 import { getPersonalNamespace } from "@/lib/namespaces";
 import { isForgotten, getMemoryMetadata } from "@/lib/redis";
 
@@ -9,21 +9,16 @@ export async function GET(req: NextRequest) {
     const userId = searchParams.get("userId") || "user_default";
     const namespace = getPersonalNamespace(userId);
 
-    // 1. Broad recall to enumerate memories from Walrus
-    const broadResult = await recallMemoriesSafely(
-      "facts about the user preferences identity goals skills projects",
-      namespace,
-      50,
-      0.95
-    );
+    // 1. Get all durable memories for this user
+    const allDurable = await getAllUserMemories(namespace);
 
     // 2. Also retrieve instant local facts for this user
     const instantList = getInstantFacts(namespace);
 
     const memoryMap = new Map<string, any>();
 
-    // Add broad Walrus results
-    for (const item of broadResult) {
+    // Add durable Walrus and disk results
+    for (const item of allDurable) {
       const forgotten = await isForgotten(userId, item.blob_id);
       if (forgotten) continue;
 

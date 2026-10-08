@@ -1,6 +1,8 @@
 import { MemWal } from "@mysten-incubation/memwal";
 import { withMemWal } from "@mysten-incubation/memwal/ai";
 import type { LanguageModel } from "ai";
+import fs from "node:fs";
+import path from "node:path";
 
 let clientInstance: MemWal | null = null;
 
@@ -35,69 +37,192 @@ export interface RecallResultItem {
   status?: "saved" | "indexing";
 }
 
+export interface StoredFactItem {
+  text: string;
+  blob_id: string;
+  createdAt: string;
+  status: "saved" | "indexing";
+}
+
+// Persistent Disk Helper to survive worker reloads & ensure 0ms availability
+function getMemoryFilePath(namespace: string): string {
+  const dir = path.join(process.cwd(), ".data", "memories");
+  if (!fs.existsSync(dir)) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+    } catch (_) {}
+  }
+  return path.join(dir, `${namespace}.json`);
+}
+
+function readDiskMemories(namespace: string): StoredFactItem[] {
+  try {
+    const file = getMemoryFilePath(namespace);
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, "utf8"));
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    console.error(`Error reading disk memories for ${namespace}:`, e);
+  }
+  return [];
+}
+
+function writeDiskMemories(namespace: string, items: StoredFactItem[]) {
+  try {
+    const file = getMemoryFilePath(namespace);
+    fs.writeFileSync(file, JSON.stringify(items, null, 2), "utf8");
+  } catch (e) {
+    console.error(`Error writing disk memories for ${namespace}:`, e);
+  }
+}
+
 // Global instant facts store across Next.js worker reloads
 const globalForMem = globalThis as unknown as {
-  instantFactsMap?: Map<string, Array<{ text: string; blob_id: string; createdAt: string; status: "saved" | "indexing" }>>;
+  instantFactsMap?: Map<string, StoredFactItem[]>;
 };
 
 const instantFactsMap =
   globalForMem.instantFactsMap || (globalForMem.instantFactsMap = new Map());
 
-export function getInstantFacts(namespace: string) {
+export function getInstantFacts(namespace: string): StoredFactItem[] {
+  if (!instantFactsMap.has(namespace)) {
+    const diskList = readDiskMemories(namespace);
+    instantFactsMap.set(namespace, diskList);
+  }
   return instantFactsMap.get(namespace) || [];
 }
 
-export function addInstantFact(namespace: string, text: string, blob_id: string, status: "saved" | "indexing" = "indexing") {
-  if (!instantFactsMap.has(namespace)) {
-    instantFactsMap.set(namespace, []);
-  }
-  const list = instantFactsMap.get(namespace)!;
-  // Prevent duplicate text in instant list
-  const existingIndex = list.findIndex((item: { text: string }) => item.text.toLowerCase() === text.toLowerCase());
+export function addInstantFact(
+  namespace: string,
+  text: string,
+  blob_id: string,
+  status: "saved" | "indexing" = "indexing"
+) {
+  const current = getInstantFacts(namespace);
+  const existingIndex = current.findIndex(
+    (item) => item.text.toLowerCase().trim() === text.toLowerCase().trim()
+  );
+
+  const newItem: StoredFactItem = {
+    text: text.trim(),
+    blob_id,
+    createdAt: new Date().toISOString(),
+    status,
+  };
+
   if (existingIndex >= 0) {
-    list[existingIndex] = { text, blob_id, createdAt: new Date().toISOString(), status };
+    current[existingIndex] = newItem;
   } else {
-    list.unshift({ text, blob_id, createdAt: new Date().toISOString(), status });
+    current.unshift(newItem);
   }
+
+  instantFactsMap.set(namespace, current);
+  writeDiskMemories(namespace, current);
 }
 
 export function updateInstantFactBlob(namespace: string, oldBlobOrText: string, newBlobId: string) {
-  const list = instantFactsMap.get(namespace);
-  if (!list) return;
+  const list = getInstantFacts(namespace);
+  let changed = false;
   for (const item of list) {
     if (item.blob_id === oldBlobOrText || item.text === oldBlobOrText) {
       item.blob_id = newBlobId;
       item.status = "saved";
+      changed = true;
     }
+  }
+  if (changed) {
+    writeDiskMemories(namespace, list);
   }
 }
 
-// Fast in-memory cache for recent recall queries (TTL 45 seconds)
+// Fast in-memory cache for recent recall queries
 const recallCache = new Map<string, { data: RecallResultItem[]; expiry: number }>();
 
 /**
- * Recall memories safely with fast timeout (max 1500ms) and instant-fact read-through cache.
+ * Retrieve ALL active durable memories for a user across all sessions.
+ * Guarantees that in any new chat, Tusk knows all previously stored facts.
+ */
+export async function getAllUserMemories(namespace: string): Promise<RecallResultItem[]> {
+  const localList = getInstantFacts(namespace);
+  const items: RecallResultItem[] = localList.map((f) => ({
+    blob_id: f.blob_id,
+    text: f.text,
+    distance: 0.1,
+    relevance: 0.95,
+    status: f.status,
+    scope: "personal",
+  }));
+
+  // Also query Walrus in background with high distance allowance to sync any external facts
+  const client = getMemWalClient();
+  if (client) {
+    try {
+      const walrusPromise = client.recall({
+        query: "all user facts preferences identity travel background goals",
+        limit: 30,
+        namespace,
+        maxDistance: 1.0,
+      });
+      const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
+        setTimeout(() => resolve({ results: [] }), 2500)
+      );
+      const res: any = await Promise.race([walrusPromise, timeoutPromise]);
+      for (const w of res?.results || []) {
+        if (!items.some((it) => it.text.toLowerCase() === w.text.toLowerCase())) {
+          items.push({
+            blob_id: w.blob_id,
+            text: w.text,
+            distance: w.distance,
+            relevance: Math.max(0, Math.min(1, 1 - w.distance)),
+            status: "saved",
+            scope: "personal",
+          });
+          // Cache locally to disk
+          addInstantFact(namespace, w.text, w.blob_id, "saved");
+        }
+      }
+    } catch (_) {}
+  }
+
+  return items;
+}
+
+/**
+ * Recall memories safely with semantic distance and read-through caching.
  */
 export async function recallMemoriesSafely(
   query: string,
   namespace: string = "default",
-  limit: number = 6,
-  maxDistance: number = 0.7
+  limit: number = 8,
+  maxDistance: number = 0.92
 ): Promise<RecallResultItem[]> {
   const client = getMemWalClient();
   const trimmedQuery = query.trim().toLowerCase();
   const queryTokens = trimmedQuery.split(/\s+/).filter((t) => t.length > 2);
 
   // 1. Check instant local facts for this namespace first (0ms latency)
-  const localList = instantFactsMap.get(namespace) || [];
+  const localList = getInstantFacts(namespace);
   const matchedLocal: RecallResultItem[] = [];
 
   for (const fact of localList) {
     const factLower = fact.text.toLowerCase();
-    // Match if broad query or token overlap
-    const hasToken = queryTokens.length === 0 || queryTokens.some((t) => factLower.includes(t)) ||
-      trimmedQuery.includes("know") || trimmedQuery.includes("remember") || trimmedQuery.includes("who am i") ||
-      trimmedQuery.includes("about me") || trimmedQuery.includes("fact") || trimmedQuery.includes("preference");
+    // Broad match if token overlap or generic recall query
+    const hasToken =
+      queryTokens.length === 0 ||
+      queryTokens.some((t) => factLower.includes(t)) ||
+      trimmedQuery.includes("know") ||
+      trimmedQuery.includes("remember") ||
+      trimmedQuery.includes("who am i") ||
+      trimmedQuery.includes("about me") ||
+      trimmedQuery.includes("fact") ||
+      trimmedQuery.includes("preference") ||
+      trimmedQuery.includes("earlier") ||
+      trimmedQuery.includes("previous") ||
+      trimmedQuery.includes("chat") ||
+      trimmedQuery.includes("travel") ||
+      trimmedQuery.includes("time") ||
+      trimmedQuery.includes("tomorrow");
 
     if (hasToken) {
       matchedLocal.push({
@@ -118,7 +243,6 @@ export async function recallMemoriesSafely(
   const now = Date.now();
   const cached = recallCache.get(cacheKey);
   if (cached && cached.expiry > now) {
-    // Merge cached with any newer local facts
     const merged = [...matchedLocal];
     for (const item of cached.data) {
       if (!merged.some((m) => m.blob_id === item.blob_id || m.text === item.text)) {
@@ -136,9 +260,9 @@ export async function recallMemoriesSafely(
       maxDistance,
     });
 
-    // 1500ms timeout guard so Walrus latency never blocks prompt generation
+    // 4000ms timeout guard so Walrus has enough time to respond over Sui network
     const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
-      setTimeout(() => resolve({ results: [] }), 1500)
+      setTimeout(() => resolve({ results: [] }), 4000)
     );
 
     const res: any = await Promise.race([recallPromise, timeoutPromise]);
@@ -151,11 +275,13 @@ export async function recallMemoriesSafely(
       status: "saved" as const,
     }));
 
-    // Merge instant local facts and Walrus results, avoiding duplicates
+    // Merge instant local facts and Walrus results
     const combined: RecallResultItem[] = [...matchedLocal];
     for (const w of walrusResults) {
       if (!combined.some((c) => c.blob_id === w.blob_id || c.text.toLowerCase() === w.text.toLowerCase())) {
         combined.push(w);
+        // Persist to local disk so subsequent queries never miss it
+        addInstantFact(namespace, w.text, w.blob_id, "saved");
       }
     }
 
@@ -168,15 +294,15 @@ export async function recallMemoriesSafely(
 }
 
 /**
- * Remember a fact: immediately registers in local instant memory for 0ms recall,
- * and writes to Walrus decentralized storage in the background.
+ * Remember a fact: immediately registers in local persistent disk memory (0ms)
+ * and writes to Walrus decentralized Sui storage in the background.
  */
 export async function rememberFactSafely(
   text: string,
   namespace: string = "default"
 ): Promise<{ blob_id?: string; job_id?: string; success: boolean }> {
-  // 1. Immediately add to instant facts so subsequent chats know it right away!
   const tempBlobId = `walrus_pending_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  // Immediately persist so the NEXT message or a NEW CHAT knows it in 0ms!
   addInstantFact(namespace, text, tempBlobId, "indexing");
 
   const client = getMemWalClient();
@@ -190,11 +316,10 @@ export async function rememberFactSafely(
       return { success: true, blob_id: tempBlobId };
     }
 
-    // Wait for the background indexer asynchronously without blocking client if called fire-and-forget
+    // Wait for the background indexer asynchronously
     const done = await client.waitForRememberJob(job.job_id);
     const finalBlobId = done.blob_id || tempBlobId;
 
-    // Update the temporary entry with the confirmed on-chain blob ID
     updateInstantFactBlob(namespace, tempBlobId, finalBlobId);
 
     return {
@@ -209,7 +334,7 @@ export async function rememberFactSafely(
 }
 
 /**
- * Wrap a language model with drop-in withMemWal middleware (M2 Safety Net).
+ * Wrap a language model with drop-in withMemWal middleware.
  */
 export function wrapModelWithMemWal(
   model: LanguageModel,

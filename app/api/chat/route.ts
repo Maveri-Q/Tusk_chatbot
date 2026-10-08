@@ -1,6 +1,11 @@
 import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
-import { recallMemoriesSafely, rememberFactSafely, RecallResultItem } from "@/lib/memwal";
+import {
+  recallMemoriesSafely,
+  rememberFactSafely,
+  getAllUserMemories,
+  RecallResultItem,
+} from "@/lib/memwal";
 import { getPersonalNamespace } from "@/lib/namespaces";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isForgotten, setMemoryMetadata } from "@/lib/redis";
@@ -10,7 +15,14 @@ import { buildSystemPrompt } from "@/lib/prompts";
 
 export async function POST(req: Request) {
   try {
-    const { messages, memoryEnabled = true, userId = "user_default" } = await req.json();
+    const {
+      messages,
+      memoryEnabled = true,
+      userId = "guest",
+      userName = "Guest",
+      userEmail = "",
+      isLoggedIn = false,
+    } = await req.json();
 
     // 1. Rate Limiting Check
     const rateCheck = await checkRateLimit(userId);
@@ -36,8 +48,15 @@ export async function POST(req: Request) {
 
     // Find the last user message for recall & query expansion
     const userMessages = messages.filter((m: any) => m.role === "user");
-    const lastUserMsg = userMessages[userMessages.length - 1]?.content || "";
-    const prevUserMsg = userMessages[userMessages.length - 2]?.content || "";
+    const lastUserItem = userMessages[userMessages.length - 1];
+    let lastUserMsg = typeof lastUserItem?.content === "string" ? lastUserItem.content : "";
+    if (lastUserItem?.attachments?.length && !lastUserMsg) {
+      const names = lastUserItem.attachments.map((a: any) => a.name).join(", ");
+      lastUserMsg = `Attached files: ${names}`;
+    }
+
+    const prevUserItem = userMessages[userMessages.length - 2];
+    const prevUserMsg = typeof prevUserItem?.content === "string" ? prevUserItem.content : "";
 
     // Short-follow-up query expansion (< 6 words)
     let recallQuery = lastUserMsg;
@@ -47,11 +66,29 @@ export async function POST(req: Request) {
 
     let usableMemories: RecallResultItem[] = [];
 
-    // 2. Read-Side Memory Recall & Firewall
-    if (memoryEnabled && recallQuery.trim()) {
-      const recalled = await recallMemoriesSafely(recallQuery, namespace, 6, 0.7);
+    // 2. Read-Side Memory Recall & Firewall (cross-chat durable memory)
+    if (memoryEnabled) {
+      // Query-specific semantic matches
+      const recalled = recallQuery.trim()
+        ? await recallMemoriesSafely(recallQuery, namespace, 8, 0.95)
+        : [];
 
-      for (const item of recalled) {
+      // Complete profile of all durable memories previously saved for this user
+      const allDurable = await getAllUserMemories(namespace);
+
+      // Merge: specific query matches first, followed by all background user facts
+      const mergedItems: RecallResultItem[] = [...recalled];
+      for (const item of allDurable) {
+        if (
+          !mergedItems.some(
+            (m) => m.text.toLowerCase().trim() === item.text.toLowerCase().trim()
+          )
+        ) {
+          mergedItems.push(item);
+        }
+      }
+
+      for (const item of mergedItems) {
         // Drop forgotten items
         const forgotten = await isForgotten(userId, item.blob_id);
         if (forgotten) continue;
@@ -68,20 +105,63 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Construct System Prompt with packaged memory context
+    // 3. Construct System Prompt with packaged memory context & true user identity
     const systemPrompt = buildSystemPrompt(
-      usableMemories.map((m) => ({ text: m.text, scope: m.scope }))
+      usableMemories.map((m) => ({ text: m.text, scope: m.scope })),
+      {
+        userId,
+        userName,
+        userEmail,
+        isLoggedIn: Boolean(isLoggedIn && userId !== "guest"),
+      }
     );
 
-    // 4. Stream response with high-speed Gemini
+    // 4. Transform messages to support multimodal content (images & documents)
+    const formattedMessages: any[] = messages.map((m: any) => {
+      let promptText = typeof m.content === "string" ? m.content : "";
+      const attachments = Array.isArray(m.attachments) ? m.attachments : [];
+
+      // Append text documents to prompt text
+      const docAttachments = attachments.filter((a: any) => a.type === "document");
+      for (const doc of docAttachments) {
+        if (doc.textContent) {
+          promptText += `\n\n[Attached Document: "${doc.name}"]\n"""\n${doc.textContent.slice(0, 32000)}\n"""`;
+        } else if (doc.name) {
+          promptText += `\n\n[Attached File: "${doc.name}"]`;
+        }
+      }
+
+      // Check for image attachments with dataUrl
+      const imgAttachments = attachments.filter((a: any) => a.type === "image" && a.dataUrl);
+      if (imgAttachments.length > 0) {
+        const parts: any[] = [{ type: "text", text: promptText || "Please analyze this image." }];
+        for (const img of imgAttachments) {
+          parts.push({
+            type: "image",
+            image: img.dataUrl,
+          });
+        }
+        return {
+          role: m.role,
+          content: parts,
+        };
+      }
+
+      return {
+        role: m.role,
+        content: promptText,
+      };
+    });
+
+    // 5. Stream response with high-speed Gemini
     const result = streamText({
       model: google(modelId),
       system: systemPrompt,
-      messages,
+      messages: formattedMessages,
       maxRetries: 1,
     });
 
-    // 5. Background Asynchronous Fact Extraction and Walrus Storage
+    // 6. Background Asynchronous Fact Extraction and Walrus Storage
     if (memoryEnabled && lastUserMsg.trim()) {
       // Fire-and-forget background pipeline
       (async () => {
