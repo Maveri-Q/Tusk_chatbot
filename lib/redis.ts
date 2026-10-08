@@ -26,7 +26,7 @@ const memorySecLogList =
   globalForTusk.memorySecLogList || (globalForTusk.memorySecLogList = new Map());
 
 export interface MemoryMetadata {
-  category: "identity" | "preference" | "goal" | "project" | "relationship" | "skill" | "other";
+  category: string;
   createdAt: string;
   scope: "personal" | "room";
   jobId?: string;

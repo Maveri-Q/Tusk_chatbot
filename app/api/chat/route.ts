@@ -95,10 +95,14 @@ export async function POST(req: Request) {
             const screened = await screenWriteFact(userId, fact.text);
             if (!screened.allowed) continue;
 
-            // Deduplication: vector search top 1; skip if cosine distance < 0.12
+            // Deduplication: skip only if exact text already stored
             const existing = await recallMemoriesSafely(screened.sanitizedText, namespace, 1, 0.5);
-            if (existing.length > 0 && existing[0].distance < 0.12) {
-              continue; // near duplicate
+            if (
+              existing.length > 0 &&
+              (existing[0].text.toLowerCase() === screened.sanitizedText.toLowerCase() ||
+                (existing[0].status === "saved" && existing[0].distance < 0.06))
+            ) {
+              continue; // exact duplicate
             }
 
             // Save to Walrus Memory

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Brain, PanelRight, ShieldAlert, Sparkles, Menu } from "lucide-react";
+import { Brain, PanelRight, User, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -11,6 +11,8 @@ interface TopBarProps {
   isPanelOpen: boolean;
   advancedTools: boolean;
   relayerStatus?: "ok" | "degraded" | "down";
+  userDisplayName?: string;
+  onOpenAuth?: () => void;
 }
 
 export function TopBar({
@@ -19,9 +21,11 @@ export function TopBar({
   isPanelOpen,
   advancedTools,
   relayerStatus = "ok",
+  userDisplayName = "Alice",
+  onOpenAuth,
 }: TopBarProps) {
   return (
-    <header className="h-14 glass-panel border-b border-border px-4 flex items-center justify-between z-20 sticky top-0">
+    <header className="h-14 glass-panel border-b border-border px-4 flex items-center justify-between z-20 sticky top-0 bg-bg/90 backdrop-blur-md">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -45,6 +49,18 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* User Account Quick Switch Pill */}
+        {onOpenAuth && (
+          <button
+            onClick={onOpenAuth}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-bg-elev-2 hover:bg-bg-elev border border-border text-text transition-colors shadow-xs"
+            title="Switch User / Account"
+          >
+            <User className="h-3 w-3 text-[#167A55]" />
+            <span className="font-medium text-[11px]">{userDisplayName}</span>
+          </button>
+        )}
+
         {/* Advanced tools indicators (hidden by default) */}
         {advancedTools && (
           <div className="flex items-center gap-2 animate-in fade-in-0 duration-200">
@@ -52,7 +68,7 @@ export function TopBar({
               <span
                 className={`h-2 w-2 rounded-full ${
                   relayerStatus === "ok"
-                    ? "bg-lime"
+                    ? "bg-[#167A55]"
                     : relayerStatus === "degraded"
                     ? "bg-warn"
                     : "bg-danger"
@@ -70,7 +86,7 @@ export function TopBar({
           className="gap-2 text-xs h-8 border-border"
           aria-label="Toggle memory lens panel"
         >
-          <Brain className="h-3.5 w-3.5 text-lime" />
+          <Brain className="h-3.5 w-3.5 text-[#167A55]" />
           <span className="hidden sm:inline">Memory Lens</span>
           <PanelRight className="h-3.5 w-3.5 text-text-muted" />
         </Button>

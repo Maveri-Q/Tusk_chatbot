@@ -47,6 +47,7 @@ interface MemoryLensProps {
   advancedTools: boolean;
   memories?: MemoryItem[];
   onRefreshMemories?: () => void;
+  userId?: string;
 }
 
 export function MemoryLens({
@@ -55,6 +56,7 @@ export function MemoryLens({
   advancedTools,
   memories = [],
   onRefreshMemories,
+  userId = "alice",
 }: MemoryLensProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
@@ -97,7 +99,7 @@ export function MemoryLens({
       const res = await fetch("/api/memories/forget", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blobId }),
+        body: JSON.stringify({ blobId, userId }),
       });
       if (res.ok) {
         if (onRefreshMemories) onRefreshMemories();

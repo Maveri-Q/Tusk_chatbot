@@ -4,31 +4,54 @@ import React from "react";
 import {
   Plus,
   MessageSquare,
-  Shield,
+  Trash2,
   LogOut,
+  LogIn,
   Sliders,
-  Sparkles,
-  ExternalLink,
+  Shield,
+  User,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface SidebarProps {
   onNewChat: () => void;
+  sessions?: ChatSession[];
+  activeSessionId?: string;
+  onSelectSession?: (id: string) => void;
+  onDeleteSession?: (id: string) => void;
   advancedTools: boolean;
   onToggleAdvancedTools: (val: boolean) => void;
   userDisplayName?: string;
+  userNamespace?: string;
+  onOpenAuth?: () => void;
+  onLogout?: () => void;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
 
 export function Sidebar({
   onNewChat,
+  sessions = [],
+  activeSessionId,
+  onSelectSession,
+  onDeleteSession,
   advancedTools,
   onToggleAdvancedTools,
   userDisplayName = "Explorer",
+  userNamespace = "personal:default",
+  onOpenAuth,
+  onLogout,
   isOpenMobile = false,
   onCloseMobile,
 }: SidebarProps) {
@@ -48,8 +71,8 @@ export function Sidebar({
         }`}
       >
         {/* Top: Branding and New Chat */}
-        <div className="p-4 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+        <div className="p-4 flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2.5">
               <div className="h-8 w-8 rounded-sm bg-flare/20 border border-flare/40 flex items-center justify-center text-flare font-display font-bold text-lg">
                 T
@@ -68,30 +91,73 @@ export function Sidebar({
           <Button
             onClick={onNewChat}
             variant="default"
-            className="w-full justify-start gap-2 h-9 text-xs"
+            className="w-full justify-start gap-2 h-9 text-xs shrink-0"
           >
             <Plus className="h-4 w-4" />
             <span>New Chat</span>
           </Button>
 
-          {/* Chat History Placeholder / Recent Sessions */}
-          <div className="mt-2">
-            <span className="text-[11px] font-medium text-text-muted px-2 uppercase tracking-wider">
-              Recent Chats
-            </span>
-            <div className="mt-2 flex flex-col gap-1">
-              <button className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-sm text-xs text-text bg-bg-elev-2 border border-border/80 text-left truncate">
-                <MessageSquare className="h-3.5 w-3.5 text-flare shrink-0" />
-                <span className="truncate">Current Session</span>
-              </button>
+          {/* Chat History: Real persistent sessions list */}
+          <div className="flex-1 min-h-0 flex flex-col mt-1 overflow-hidden">
+            <div className="flex items-center justify-between px-1 mb-2 shrink-0">
+              <span className="text-[11px] font-medium text-text-muted uppercase tracking-wider">
+                Saved Chats ({sessions.length})
+              </span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto flex flex-col gap-1 pr-1">
+              {sessions.length === 0 ? (
+                <div className="p-3 rounded-lg border border-dashed border-border text-center text-text-muted text-[11px]">
+                  No saved conversations yet. Start chatting!
+                </div>
+              ) : (
+                sessions.map((sess) => {
+                  const isActive = sess.id === activeSessionId;
+                  return (
+                    <div
+                      key={sess.id}
+                      className={`group flex items-center justify-between w-full px-2.5 py-2 rounded-lg text-xs transition-colors ${
+                        isActive
+                          ? "bg-flare text-flare-foreground font-medium shadow-xs"
+                          : "text-text hover:bg-bg-elev-2 border border-transparent hover:border-border"
+                      }`}
+                    >
+                      <button
+                        onClick={() => onSelectSession?.(sess.id)}
+                        className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                      >
+                        <MessageSquare
+                          className={`h-3.5 w-3.5 shrink-0 ${
+                            isActive ? "text-flare-foreground" : "text-text-muted"
+                          }`}
+                        />
+                        <span className="truncate">{sess.title}</span>
+                      </button>
+
+                      {onDeleteSession && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteSession(sess.id);
+                          }}
+                          className={`opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-red-500 transition-opacity ml-1`}
+                          title="Delete conversation"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
 
         {/* Bottom: Advanced tools switch and Account Menu */}
-        <div className="p-4 border-t border-border bg-bg-elev flex flex-col gap-3">
+        <div className="p-4 border-t border-border bg-bg-elev flex flex-col gap-3 shrink-0">
           {/* Advanced Tools Toggle Switch */}
-          <div className="rounded-sm bg-bg-elev-2 p-3 border border-border flex flex-col gap-2">
+          <div className="rounded-lg bg-bg-elev-2 p-3 border border-border flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <label
                 htmlFor="advanced-tools-toggle"
@@ -113,22 +179,46 @@ export function Sidebar({
 
           <Separator />
 
-          {/* User Profile */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="flex items-center gap-2.5 min-w-0">
+          {/* User Account / Login & Logout Section */}
+          <div className="p-2.5 rounded-xl bg-bg-elev-2 border border-border flex items-center justify-between">
+            <div
+              onClick={onOpenAuth}
+              className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
+            >
               <Avatar className="h-8 w-8 bg-flare/10 border-flare/30">
                 <AvatarFallback className="text-flare font-medium text-xs">
                   {userDisplayName.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex flex-col min-w-0">
-                <span className="text-xs font-medium text-text truncate">
+                <span className="text-xs font-semibold text-text truncate group-hover:text-[#167A55] transition-colors">
                   {userDisplayName}
                 </span>
-                <span className="text-[10px] text-text-muted truncate">
-                  Decentralized memory
+                <span className="text-[10px] text-text-muted font-mono truncate">
+                  {userNamespace}
                 </span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onOpenAuth}
+                className="h-7 px-2 text-[11px] text-[#167A55] hover:bg-[#C8F5DE]/40"
+                title="Switch account"
+              >
+                Switch
+              </Button>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-50 transition-colors"
+                  title="Sign out"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
