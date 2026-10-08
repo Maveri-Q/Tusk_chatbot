@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { LivingAtmosphere } from "@/components/landing/LivingAtmosphere";
+import { InteractiveGrainField } from "@/components/landing/InteractiveGrainField";
 import { TuskSymbol } from "@/components/brand/TuskSymbol";
 import { TuskLoadingExperience } from "@/components/landing/TuskLoadingExperience";
 import { InteractiveHeroSystem } from "@/components/landing/InteractiveHeroSystem";
@@ -25,6 +26,9 @@ export default function LandingPage() {
       <main className="min-h-screen bg-[#F7F7F5] text-[#17191C] flex flex-col justify-between selection:bg-[#C8F5DE] selection:text-[#167A55] relative overflow-hidden">
         {/* Living Canvas Atmosphere: Physics-damped liquid light & cursor energy */}
         <LivingAtmosphere />
+
+        {/* Interactive Tactile Grain Field: Reacts to cursor movement with dynamic swirl turbulence */}
+        <InteractiveGrainField />
 
         {/* Minimal Navigation Bar */}
         <header className="relative h-24 px-6 sm:px-12 flex items-center justify-between z-30 max-w-6xl mx-auto w-full">
