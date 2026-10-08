@@ -367,7 +367,7 @@ export default function ChatPage() {
       const cleanAccumulated = accumulated.replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "").trimStart();
       const finalContent =
         cleanAccumulated ||
-        "I'm ready. Let me know what you would like to explore or remember.";
+        "⚠️ No response received from the AI model. Please verify your Gemini API key and model quota in your Vercel deployment settings.";
 
       // Finalize and persist messages in the active session
       const finalMsgList: ChatMessage[] = [

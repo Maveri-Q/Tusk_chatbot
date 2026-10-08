@@ -56,16 +56,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    if (!apiKey) {
+    const rawApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!rawApiKey) {
       return new Response(
         JSON.stringify({ error: "Missing GOOGLE_GENERATIVE_AI_API_KEY in environment" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
+    // Sanitize API key (strip any stray quotes or whitespace from copy-paste)
+    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
     const google = createGoogleGenerativeAI({ apiKey });
-    const modelId = normalizeModelId(process.env.TUSK_MODEL_ID);
+
+    const rawModelId = process.env.TUSK_MODEL_ID;
+    const modelId = normalizeModelId(rawModelId?.replace(/^["']|["']$/g, "").trim());
     const namespace = getPersonalNamespace(userId);
 
     // Find the last user message for recall & query expansion
@@ -247,8 +251,39 @@ export async function POST(req: Request) {
       })();
     }
 
-    // Return text stream with recalled memories encoded in header
-    const response = result.toTextStreamResponse();
+    // 7. Robust error-capturing stream pipe: ensures tokens stream and errors are transparent
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let chunkCount = 0;
+        try {
+          for await (const chunk of result.textStream) {
+            chunkCount++;
+            controller.enqueue(encoder.encode(chunk));
+          }
+          if (chunkCount === 0) {
+            controller.enqueue(
+              encoder.encode("I received your message, but the model generated 0 tokens. Please check your model settings.")
+            );
+          }
+          controller.close();
+        } catch (streamErr: any) {
+          console.error("AI text stream error:", streamErr);
+          const errorNotice = chunkCount > 0
+            ? `\n\n⚠️ [Streaming disconnected: ${streamErr?.message || "connection error"}]`
+            : `⚠️ AI Error: ${streamErr?.message || "Model failed to generate response. Please verify your Google Gemini API key and model quota."}`;
+          controller.enqueue(encoder.encode(errorNotice));
+          controller.close();
+        }
+      },
+    });
+
+    const headers: Record<string, string> = {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+    };
+
     if (usableMemories.length > 0) {
       const metadataPayload = usableMemories.slice(0, 5).map((m) => ({
         text: m.text,
@@ -256,13 +291,10 @@ export async function POST(req: Request) {
         blob_id: m.blob_id,
         scope: m.scope,
       }));
-      response.headers.set(
-        "x-recalled-memories",
-        encodeURIComponent(JSON.stringify(metadataPayload))
-      );
+      headers["x-recalled-memories"] = encodeURIComponent(JSON.stringify(metadataPayload));
     }
 
-    return response;
+    return new Response(stream, { headers });
   } catch (error: any) {
     console.error("Chat API error:", error);
     return new Response(JSON.stringify({ error: error.message }), {

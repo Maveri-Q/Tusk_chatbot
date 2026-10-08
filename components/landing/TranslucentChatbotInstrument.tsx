@@ -140,7 +140,7 @@ export function TranslucentChatbotInstrument() {
 
       if (!accumulated.trim()) {
         setAssistantMessage(
-          "I received your message. Let me know what you would like to remember or explore."
+          "⚠️ Model stream returned 0 tokens. Please verify your Google Gemini API key and quota."
         );
       }
     } catch (err: any) {
