@@ -10,6 +10,7 @@ interface TopBarProps {
   onTogglePanel: () => void;
   onToggleSidebar: () => void;
   isPanelOpen: boolean;
+  memoriesCount?: number;
   advancedTools: boolean;
   onToggleAdvancedTools?: () => void;
   relayerStatus?: "ok" | "degraded" | "down";
@@ -22,6 +23,7 @@ export function TopBar({
   onTogglePanel,
   onToggleSidebar,
   isPanelOpen,
+  memoriesCount,
   advancedTools,
   onToggleAdvancedTools,
   relayerStatus = "ok",
@@ -114,20 +116,27 @@ export function TopBar({
           </div>
         )}
 
-        {/* Memory Lens Panel Toggle: Hidden by default; visible only when advanced tools is enabled */}
-        {advancedTools && (
-          <Button
-            variant={isPanelOpen ? "secondary" : "ghost"}
-            size="sm"
-            onClick={onTogglePanel}
-            className="gap-2 text-xs h-8 border-border animate-in fade-in-0 duration-200"
-            aria-label="Toggle memory lens panel"
-          >
-            <Brain className="h-3.5 w-3.5 text-[#167A55]" />
-            <span className="hidden sm:inline">Memory Lens</span>
-            <PanelRight className="h-3.5 w-3.5 text-text-muted" />
-          </Button>
-        )}
+        {/* Memory Lens Panel Toggle: Always visible and accessible */}
+        <Button
+          variant={isPanelOpen ? "secondary" : "ghost"}
+          size="sm"
+          onClick={onTogglePanel}
+          className={`gap-2 text-xs h-8 border transition-all ${
+            isPanelOpen
+              ? "bg-[#167A55]/15 border-[#167A55]/40 text-[#167A55] font-semibold"
+              : "border-border hover:border-[#167A55]/50 hover:bg-bg-elev-2 text-text"
+          }`}
+          aria-label="Toggle memory lens panel"
+        >
+          <Brain className="h-3.5 w-3.5 text-[#167A55]" />
+          <span className="hidden sm:inline">Memory Lens</span>
+          {typeof memoriesCount === "number" && (
+            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#167A55]/15 text-[#167A55] font-medium border border-[#167A55]/20">
+              {memoriesCount}
+            </span>
+          )}
+          <PanelRight className="h-3.5 w-3.5 text-text-muted" />
+        </Button>
       </div>
     </header>
   );

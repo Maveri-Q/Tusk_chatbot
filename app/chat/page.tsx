@@ -400,13 +400,14 @@ export default function ChatPage() {
       );
       persistSessions(updatedSessions);
 
-      // Refresh memories list to catch any new saves (dual staggered refresh for async Walrus write)
+      // Refresh memories list: immediately for fast-path 0ms facts + staggered for async Walrus sync
+      loadMemories(currentUser.id);
       setTimeout(() => {
         loadMemories(currentUser.id);
-      }, 2500);
+      }, 1200);
       setTimeout(() => {
         loadMemories(currentUser.id);
-      }, 6000);
+      }, 4000);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
       const errorMsgText = `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`;
@@ -530,7 +531,14 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         <TopBar
           isPanelOpen={isPanelOpen}
-          onTogglePanel={() => setIsPanelOpen(!isPanelOpen)}
+          memoriesCount={memories.length}
+          onTogglePanel={() => {
+            const next = !isPanelOpen;
+            setIsPanelOpen(next);
+            if (next) {
+              loadMemories(currentUser.id);
+            }
+          }}
           onToggleSidebar={() => setIsSidebarMobileOpen(!isSidebarMobileOpen)}
           advancedTools={advancedTools}
           onToggleAdvancedTools={() => handleToggleAdvancedTools(!advancedTools)}

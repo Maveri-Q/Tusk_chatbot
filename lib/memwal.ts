@@ -54,7 +54,8 @@ function getMemoryFilePath(namespace: string): string | null {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    return path.join(dir, `${namespace}.json`);
+    const safeName = namespace.replace(/[^a-zA-Z0-9_-]/g, "_");
+    return path.join(dir, `${safeName}.json`);
   } catch (_) {
     return null;
   }
@@ -146,6 +147,9 @@ export function updateInstantFactBlob(namespace: string, oldBlobOrText: string, 
 // Fast in-memory cache for recent recall queries
 const recallCache = new Map<string, { data: RecallResultItem[]; expiry: number }>();
 
+// Cache tracking recent external Walrus syncs per namespace
+const walrusSyncCache = new Map<string, number>();
+
 /**
  * Retrieve ALL active durable memories for a user across all sessions.
  * Guarantees that in any new chat, Tusk knows all previously stored facts.
@@ -161,10 +165,18 @@ export async function getAllUserMemories(namespace: string): Promise<RecallResul
     scope: "personal",
   }));
 
-  // Also query Walrus in background with high distance allowance to sync any external facts
+  const now = Date.now();
+  const lastSync = walrusSyncCache.get(namespace) || 0;
+  // If synced Walrus within the last 30s, return immediately (0ms)
+  if (now - lastSync < 30000) {
+    return items;
+  }
+
+  // Query Walrus relayer with snappy 500ms timeout guard
   const client = getMemWalClient();
   if (client) {
     try {
+      walrusSyncCache.set(namespace, now);
       const walrusPromise = client.recall({
         query: "all user facts preferences identity travel background goals",
         limit: 30,
@@ -172,7 +184,7 @@ export async function getAllUserMemories(namespace: string): Promise<RecallResul
         maxDistance: 1.0,
       });
       const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
-        setTimeout(() => resolve({ results: [] }), 1200)
+        setTimeout(() => resolve({ results: [] }), 500)
       );
       const res: any = await Promise.race([walrusPromise, timeoutPromise]);
       for (const w of res?.results || []) {
@@ -319,20 +331,22 @@ export async function rememberFactSafely(
 
   try {
     const job = await client.remember(text, namespace);
-    if (!job?.job_id) {
-      return { success: true, blob_id: tempBlobId };
+    if (job?.job_id) {
+      // Non-blocking background resolution so local fact is active in 0ms without waiting for chain
+      client
+        .waitForRememberJob(job.job_id)
+        .then((done: any) => {
+          if (done?.blob_id) {
+            updateInstantFactBlob(namespace, tempBlobId, done.blob_id);
+          }
+        })
+        .catch(() => {});
     }
-
-    // Wait for the background indexer asynchronously
-    const done = await client.waitForRememberJob(job.job_id);
-    const finalBlobId = done.blob_id || tempBlobId;
-
-    updateInstantFactBlob(namespace, tempBlobId, finalBlobId);
 
     return {
       success: true,
-      job_id: job.job_id,
-      blob_id: finalBlobId,
+      job_id: job?.job_id,
+      blob_id: tempBlobId,
     };
   } catch (err) {
     console.error(`Walrus remember error in namespace '${namespace}':`, err);

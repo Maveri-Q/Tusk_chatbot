@@ -10,7 +10,7 @@ import { getPersonalNamespace } from "@/lib/namespaces";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { isForgotten, setMemoryMetadata } from "@/lib/redis";
 import { screenReadMemory, screenWriteFact } from "@/lib/firewall";
-import { extractDurableFacts } from "@/lib/extract";
+import { extractDurableFacts, extractFastFacts } from "@/lib/extract";
 import { buildSystemPrompt } from "@/lib/prompts";
 
 export const maxDuration = 60;
@@ -259,8 +259,32 @@ export async function POST(req: Request) {
     // 5. Get model cascade
     const candidateModels = getModelCascade(modelId);
 
-    // 6. Background Asynchronous Fact Extraction and Walrus Storage
+    // 6. Fast-Path Instant & Background Fact Extraction and Walrus Storage
     if (memoryEnabled && lastUserMsg.trim()) {
+      // 6a. Fast-Path (0ms): Instant rule-based facts saved immediately to disk & Walrus
+      try {
+        const immediateFacts = extractFastFacts(lastUserMsg);
+        for (const fact of immediateFacts) {
+          (async () => {
+            try {
+              const screened = await screenWriteFact(userId, fact.text);
+              if (screened.allowed) {
+                const saveRes = await rememberFactSafely(screened.sanitizedText, namespace);
+                if (saveRes.success && saveRes.blob_id) {
+                  await setMemoryMetadata(userId, saveRes.blob_id, {
+                    category: fact.category,
+                    createdAt: new Date().toISOString(),
+                    scope: "personal",
+                    jobId: saveRes.job_id,
+                  });
+                }
+              }
+            } catch (_) {}
+          })();
+        }
+      } catch (_) {}
+
+      // 6b. Deep extraction for conversational nuances via Gemini
       (async () => {
         try {
           const facts = await extractDurableFacts(lastUserMsg);
@@ -271,16 +295,6 @@ export async function POST(req: Request) {
 
             const screened = await screenWriteFact(userId, fact.text);
             if (!screened.allowed) continue;
-
-            // Deduplication: skip only if exact text already stored
-            const existing = await recallMemoriesSafely(screened.sanitizedText, namespace, 1, 0.5);
-            if (
-              existing.length > 0 &&
-              (existing[0].text.toLowerCase() === screened.sanitizedText.toLowerCase() ||
-                (existing[0].status === "saved" && existing[0].distance < 0.06))
-            ) {
-              continue; // exact duplicate
-            }
 
             // Save to Walrus Memory
             const saveRes = await rememberFactSafely(screened.sanitizedText, namespace);
