@@ -90,7 +90,14 @@ export default function ChatPage() {
       content: userText,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = `assistant-${Date.now()}`;
+    const assistantPlaceholder: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantPlaceholder]);
     setInput("");
     setIsLoading(true);
 
@@ -108,7 +115,12 @@ export default function ChatPage() {
       });
 
       if (!response.ok) {
-        throw new Error(`Chat request failed: ${response.statusText}`);
+        let errorDetail = response.statusText;
+        try {
+          const errJson = await response.json();
+          if (errJson?.error) errorDetail = errJson.error;
+        } catch (_) {}
+        throw new Error(errorDetail || "Chat request failed");
       }
 
       if (!response.body) {
@@ -121,21 +133,15 @@ export default function ChatPage() {
       if (headerVal) {
         try {
           recalledFromHeader = JSON.parse(decodeURIComponent(headerVal));
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantId ? { ...msg, recalledMemories: recalledFromHeader } : msg
+            )
+          );
         } catch (e) {
           console.error("Failed to parse recalled memories header:", e);
         }
       }
-
-      // Stream the assistant response
-      const assistantId = `assistant-${Date.now()}`;
-      const assistantMsg: ChatMessage = {
-        id: assistantId,
-        role: "assistant",
-        content: "",
-        recalledMemories: recalledFromHeader,
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -146,10 +152,26 @@ export default function ChatPage() {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         accumulated += chunk;
+        const cleanContent = accumulated
+          .replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "")
+          .trimStart();
 
         setMessages((prev) =>
           prev.map((msg) =>
-            msg.id === assistantId ? { ...msg, content: accumulated } : msg
+            msg.id === assistantId ? { ...msg, content: cleanContent } : msg
+          )
+        );
+      }
+
+      if (!accumulated.trim()) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId
+              ? {
+                  ...msg,
+                  content: "I received your message, but the model did not generate any text. Please try again.",
+                }
+              : msg
           )
         );
       }
@@ -157,16 +179,19 @@ export default function ChatPage() {
       // After chat completes, reload memories list to catch any new saves
       setTimeout(() => {
         loadMemories();
-      }, 5000);
+      }, 3500);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
-      const errorMsg: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: "assistant",
-        content:
-          "⚠️ I encountered an error communicating with the model. Please check the API configuration and try again.",
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`,
+              }
+            : msg
+        )
+      );
     } finally {
       setIsLoading(false);
     }

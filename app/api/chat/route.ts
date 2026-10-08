@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const modelId = process.env.TUSK_MODEL_ID || "gemini-3.8-flash";
+    const modelId = process.env.TUSK_MODEL_ID || "gemini-flash-lite-latest";
     const namespace = getPersonalNamespace(userId);
 
     // Find the last user message for recall & query expansion
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
     // 2. Read-Side Memory Recall & Firewall
     if (memoryEnabled && recallQuery.trim()) {
-      const recalled = await recallMemoriesSafely(recallQuery, namespace, 8, 0.7);
+      const recalled = await recallMemoriesSafely(recallQuery, namespace, 6, 0.7);
 
       for (const item of recalled) {
         // Drop forgotten items
@@ -73,11 +73,12 @@ export async function POST(req: Request) {
       usableMemories.map((m) => ({ text: m.text, scope: m.scope }))
     );
 
-    // 4. Stream response with Gemini
+    // 4. Stream response with high-speed Gemini
     const result = streamText({
       model: google(modelId),
       system: systemPrompt,
       messages,
+      maxRetries: 1,
     });
 
     // 5. Background Asynchronous Fact Extraction and Walrus Storage

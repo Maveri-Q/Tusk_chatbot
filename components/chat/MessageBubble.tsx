@@ -62,6 +62,13 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       >
         {isUser ? (
           <div className="whitespace-pre-wrap">{message.content}</div>
+        ) : !message.content ? (
+          <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-text-muted">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-soft animate-pulse" />
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-soft animate-pulse [animation-delay:200ms]" />
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-soft animate-pulse [animation-delay:400ms]" />
+            <span className="ml-1.5 font-mono text-[11px] text-text-muted">Thinking...</span>
+          </div>
         ) : (
           <div className="prose prose-invert max-w-none text-sm leading-relaxed [&>p]:mb-2 [&>p:last-child]:mb-0 [&>pre]:bg-bg [&>pre]:p-3 [&>pre]:rounded-sm [&>pre]:border [&>pre]:border-border [&>code]:font-mono [&>code]:text-xs">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>

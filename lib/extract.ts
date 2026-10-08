@@ -33,11 +33,12 @@ export async function extractDurableFacts(userMessage: string): Promise<Extracte
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey || !userMessage.trim()) return [];
 
-  const modelId = process.env.TUSK_MODEL_ID || "gemini-3.8-flash";
+  const modelId = process.env.TUSK_MODEL_ID || "gemini-flash-lite-latest";
 
   try {
     const { object } = await generateObject({
       model: google(modelId),
+      maxRetries: 1,
       schema: ExtractedFactsSchema,
       prompt: `Extract up to 5 permanent, durable facts about the user from their message.
 Format each fact as a concise, third-person declarative statement (e.g. "The user prefers dark mode").

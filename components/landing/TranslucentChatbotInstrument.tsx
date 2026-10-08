@@ -2,9 +2,15 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowUp, ArrowRight, Check, Copy, Sparkles } from "lucide-react";
+import { ArrowUp, ArrowRight, Check, Copy } from "lucide-react";
 import { IntelligenceMark } from "./IntelligenceMark";
 import { Switch } from "@/components/ui/switch";
+
+interface RecalledItem {
+  text: string;
+  relevance: number;
+  blob_id: string;
+}
 
 export function TranslucentChatbotInstrument() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -17,7 +23,19 @@ export function TranslucentChatbotInstrument() {
   const [showDetails, setShowDetails] = useState(false);
   const [copiedBlob, setCopiedBlob] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [chatState, setChatState] = useState<"initial" | "answered">("initial");
+
+  // Live dialogue state
+  const [userMessage, setUserMessage] = useState("What do you know about me?");
+  const [assistantMessage, setAssistantMessage] = useState(
+    "You are an astrophysicist studying exoplanets, and you mentioned your go-to ice cream is pistachio."
+  );
+  const [recalledMemories, setRecalledMemories] = useState<RecalledItem[]>([
+    {
+      text: "The user is an astrophysicist studying exoplanets.",
+      relevance: 0.92,
+      blob_id: "sZJ1lo6-0HODV5C4tLxWWRXtzb5xNX50c18R62pygt8",
+    },
+  ]);
 
   // Subtle supporting mouse response: light shifts across the glass
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -48,19 +66,81 @@ export function TranslucentChatbotInstrument() {
     setSpecular({ x: 50, y: 25 });
   };
 
-  const handleSend = () => {
-    if (!inputValue.trim() || isSending) return;
-    setIsSending(true);
+  const handleSendQuery = async (queryToSend?: string) => {
+    const text = (queryToSend || inputValue).trim();
+    if (!text || isSending) return;
 
-    setTimeout(() => {
-      setChatState("answered");
+    setUserMessage(text);
+    setAssistantMessage("");
+    setIsSending(true);
+    setInputValue("");
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: text }],
+          memoryEnabled,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      // Check for recalled memories in headers
+      const memoryHeader = response.headers.get("x-recalled-memories");
+      if (memoryHeader) {
+        try {
+          const parsed = JSON.parse(decodeURIComponent(memoryHeader));
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setRecalledMemories(
+              parsed.map((item: any) => ({
+                text: item.text,
+                relevance: item.relevance || 0.85,
+                blob_id: item.blob_id || "sZJ1lo6...ygt8",
+              }))
+            );
+          }
+        } catch (_) {}
+      }
+
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
+        const cleanContent = accumulated
+          .replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "")
+          .trimStart();
+        setAssistantMessage(cleanContent);
+      }
+
+      if (!accumulated.trim()) {
+        setAssistantMessage("I received your message. Let me know what you would like to remember or explore.");
+      }
+    } catch (err: any) {
+      console.error("Landing chatbot request error:", err);
+      setAssistantMessage(
+        "I'm ready. You can test asking what I remember about you or store a new memory."
+      );
+    } finally {
       setIsSending(false);
-      setInputValue("");
-    }, 450);
+    }
   };
 
   const copyBlob = () => {
-    navigator.clipboard.writeText("sZJ1lo6-0HODV5C4tLxWWRXtzb5xNX50c18R62pygt8");
+    const blobToCopy = recalledMemories[0]?.blob_id || "sZJ1lo6-0HODV5C4tLxWWRXtzb5xNX50c18R62pygt8";
+    navigator.clipboard.writeText(blobToCopy);
     setCopiedBlob(true);
     setTimeout(() => setCopiedBlob(false), 2000);
   };
@@ -130,47 +210,64 @@ export function TranslucentChatbotInstrument() {
         <div className="flex flex-col gap-4">
           {/* User message capsule: Inverted dark optical glass */}
           <div className="self-end max-w-[85%] rounded-[16px] bg-[#17191C]/92 backdrop-blur-md text-[#F7F7F5] px-4 py-2.5 text-xs font-normal leading-relaxed shadow-[inset_0_1px_1px_rgba(255,255,255,0.2),0_4px_14px_-2px_rgba(23,25,28,0.1)]">
-            What do you know about me?
+            {userMessage}
           </div>
 
           {/* Assistant message plate: Frosted translucent material */}
           <div className="self-start max-w-[94%] rounded-[18px] glass-frosted p-4 text-xs text-[#17191C] leading-relaxed flex flex-col gap-3 shadow-xs">
             {/* Recalled memory drawer pill */}
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setShowDetails(!showDetails)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/80 border border-[#8DE8BF]/60 text-[#167A55] text-[10px] font-mono hover:bg-[#C8F5DE]/50 transition-colors w-fit shadow-xs"
-              >
-                <IntelligenceMark size={11} active={false} />
-                <span>Remembered 2 things</span>
-                <span className="text-[9px] underline">
-                  {showDetails ? "Hide Details" : "Details"}
-                </span>
-              </button>
+            {recalledMemories.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setShowDetails(!showDetails)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/80 border border-[#8DE8BF]/60 text-[#167A55] text-[10px] font-mono hover:bg-[#C8F5DE]/50 transition-colors w-fit shadow-xs"
+                >
+                  <IntelligenceMark size={11} active={false} />
+                  <span>
+                    Remembered {recalledMemories.length} thing{recalledMemories.length > 1 ? "s" : ""}
+                  </span>
+                  <span className="text-[9px] underline">
+                    {showDetails ? "Hide Details" : "Details"}
+                  </span>
+                </button>
 
-              {showDetails && (
-                <div className="mt-1 p-3 rounded-[12px] bg-white/90 border border-white/80 text-[10px] flex flex-col gap-2 font-mono shadow-xs animate-in fade-in-0 duration-200">
-                  <div className="flex items-center justify-between text-[#6F7378]">
-                    <span>The user is an astrophysicist studying exoplanets.</span>
-                    <span className="text-[#167A55] font-semibold">92%</span>
+                {showDetails && (
+                  <div className="mt-1 p-3 rounded-[12px] bg-white/90 border border-white/80 text-[10px] flex flex-col gap-2 font-mono shadow-xs animate-in fade-in-0 duration-200">
+                    <div className="flex items-center justify-between text-[#6F7378]">
+                      <span>{recalledMemories[0].text}</span>
+                      <span className="text-[#167A55] font-semibold">
+                        {Math.round(recalledMemories[0].relevance * 100)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-[#6F7378] pt-1.5 border-t border-[rgba(23,25,28,0.06)]">
+                      <span className="truncate max-w-[210px]">
+                        Blob: {recalledMemories[0].blob_id.slice(0, 7)}...{recalledMemories[0].blob_id.slice(-4)}
+                      </span>
+                      <button
+                        onClick={copyBlob}
+                        className="hover:text-[#17191C] flex items-center gap-1 font-sans"
+                      >
+                        {copiedBlob ? <Check className="h-2.5 w-2.5 text-[#167A55]" /> : <Copy className="h-2.5 w-2.5" />}
+                        <span>{copiedBlob ? "Copied" : "Copy"}</span>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-[9px] text-[#6F7378] pt-1.5 border-t border-[rgba(23,25,28,0.06)]">
-                    <span className="truncate max-w-[210px]">Blob: sZJ1lo6...ygt8</span>
-                    <button
-                      onClick={copyBlob}
-                      className="hover:text-[#17191C] flex items-center gap-1 font-sans"
-                    >
-                      {copiedBlob ? <Check className="h-2.5 w-2.5 text-[#167A55]" /> : <Copy className="h-2.5 w-2.5" />}
-                      <span>{copiedBlob ? "Copied" : "Copy"}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            <p className="font-normal text-[#17191C]">
-              You are an astrophysicist studying exoplanets, and you mentioned your go-to ice cream is pistachio.
-            </p>
+            {!assistantMessage && isSending ? (
+              <div className="flex items-center gap-1.5 py-1 text-xs text-[#6F7378]">
+                <span className="inline-block h-2 w-2 rounded-full bg-[#42C98A] animate-pulse" />
+                <span className="inline-block h-2 w-2 rounded-full bg-[#42C98A] animate-pulse [animation-delay:200ms]" />
+                <span className="inline-block h-2 w-2 rounded-full bg-[#42C98A] animate-pulse [animation-delay:400ms]" />
+                <span className="ml-1 font-mono text-[11px]">Thinking...</span>
+              </div>
+            ) : (
+              <p className="font-normal text-[#17191C] whitespace-pre-wrap">
+                {assistantMessage}
+              </p>
+            )}
           </div>
         </div>
 
@@ -184,7 +281,10 @@ export function TranslucentChatbotInstrument() {
           ].map((promptText) => (
             <button
               key={promptText}
-              onClick={() => setInputValue(promptText)}
+              onClick={() => {
+                setInputValue(promptText);
+                handleSendQuery(promptText);
+              }}
               className="text-[11px] text-[#6F7378] hover:text-[#17191C] glass-pill hover:bg-white/90 px-3 py-1 rounded-full transition-all text-left shadow-xs hover:border-[#8DE8BF]/60 active:scale-98"
             >
               {promptText}
@@ -202,17 +302,17 @@ export function TranslucentChatbotInstrument() {
             onFocus={() => setIsInputFocused(true)}
             onBlur={() => setIsInputFocused(false)}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onKeyDown={(e) => e.key === "Enter" && handleSendQuery()}
             placeholder="Ask Tusk anything, or share something to remember..."
             className="w-full bg-transparent text-xs text-[#17191C] placeholder:text-[#6F7378] outline-none"
           />
 
           <button
-            onClick={handleSend}
+            onClick={() => handleSendQuery()}
             disabled={!inputValue.trim() || isSending}
             aria-label="Send signal"
             className={`ml-2 h-7 w-7 rounded-[9px] flex items-center justify-center transition-all ${
-              inputValue.trim()
+              inputValue.trim() && !isSending
                 ? "bg-[#17191C] text-[#F7F7F5] hover:bg-[#167A55] active:scale-95 shadow-sm"
                 : "bg-transparent text-[#6F7378]/35 cursor-not-allowed"
             }`}

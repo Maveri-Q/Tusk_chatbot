@@ -34,8 +34,11 @@ export interface RecallResultItem {
   scope?: "personal" | "room";
 }
 
+// Fast in-memory cache for recent recall queries (TTL 45 seconds)
+const recallCache = new Map<string, { data: RecallResultItem[]; expiry: number }>();
+
 /**
- * Recall memories safely with try/catch fallback.
+ * Recall memories safely with fast timeout (max 1200ms) and in-memory cache.
  */
 export async function recallMemoriesSafely(
   query: string,
@@ -44,27 +47,46 @@ export async function recallMemoriesSafely(
   maxDistance: number = 0.7
 ): Promise<RecallResultItem[]> {
   const client = getMemWalClient();
-  if (!client) return [];
+  if (!client || !query.trim()) return [];
+
+  const cacheKey = `${namespace}:${query.trim().toLowerCase()}:${limit}`;
+  const now = Date.now();
+  const cached = recallCache.get(cacheKey);
+  if (cached && cached.expiry > now) {
+    return cached.data;
+  }
 
   try {
-    const res = await client.recall({
+    const recallPromise = client.recall({
       query,
       limit,
       namespace,
       maxDistance,
     });
 
-    if (!res?.results) return [];
+    // 1200ms timeout guard so Walrus latency never blocks prompt generation
+    const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
+      setTimeout(() => resolve({ results: [] }), 1200)
+    );
 
-    return res.results.map((item) => ({
+    const res: any = await Promise.race([recallPromise, timeoutPromise]);
+
+    if (!res?.results || res.results.length === 0) {
+      return cached?.data || [];
+    }
+
+    const formatted: RecallResultItem[] = res.results.map((item: any) => ({
       blob_id: item.blob_id,
       text: item.text,
       distance: item.distance,
       relevance: Math.max(0, Math.min(1, 1 - item.distance)),
     }));
+
+    recallCache.set(cacheKey, { data: formatted, expiry: now + 45000 });
+    return formatted;
   } catch (err) {
     console.error(`Walrus recall error in namespace '${namespace}':`, err);
-    return [];
+    return cached?.data || [];
   }
 }
 
