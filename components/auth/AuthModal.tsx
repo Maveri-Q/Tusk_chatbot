@@ -225,6 +225,102 @@ export function AuthModal({
           </div>
         )}
 
+        {/* Quick Demo Switcher (Judges Showcase) */}
+        <div className="flex flex-col gap-2 p-3 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] border border-[rgba(23,25,28,0.08)]">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-[#17191C] dark:text-[#F7F7F5] flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-[#167A55]" />
+              Demo Profiles (10+ Walrus Memories Each)
+            </span>
+            <span className="text-[10px] font-mono text-[#6F7378]">Session 8 Showcase</span>
+          </div>
+          <div className="grid grid-cols-1 gap-1.5 mt-1">
+            <button
+              type="button"
+              onClick={() => {
+                onSelectUser({
+                  id: "tobeotuonye",
+                  name: "Tobe Otuonye",
+                  email: "tobe@tusk.dev",
+                  provider: "email",
+                });
+                setSuccessMessage("Switched to Tobe (12 memories loaded)");
+                setTimeout(() => onClose(), 500);
+              }}
+              className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-white/5 border border-[rgba(23,25,28,0.1)] hover:border-[#167A55] transition-all text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-7 w-7 bg-[#167A55]/15 border border-[#167A55]/30">
+                  <AvatarFallback className="text-[11px] text-[#167A55] font-semibold">TO</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-medium truncate">Tobe Otuonye</span>
+                  <span className="text-[10px] text-[#6F7378] truncate">Fullstack Founder • Lagos</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-medium text-[#167A55] px-2 py-0.5 rounded bg-[#167A55]/10 border border-[#167A55]/20">
+                12 memories
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSelectUser({
+                  id: "sarah_lin",
+                  name: "Sarah Lin",
+                  email: "sarah.lin@design.co",
+                  provider: "email",
+                });
+                setSuccessMessage("Switched to Sarah (11 memories loaded)");
+                setTimeout(() => onClose(), 500);
+              }}
+              className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-white/5 border border-[rgba(23,25,28,0.1)] hover:border-[#FF6A2B] transition-all text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-7 w-7 bg-[#FF6A2B]/15 border border-[#FF6A2B]/30">
+                  <AvatarFallback className="text-[11px] text-[#FF6A2B] font-semibold">SL</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-medium truncate">Sarah Lin</span>
+                  <span className="text-[10px] text-[#6F7378] truncate">Product Designer • SF</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-medium text-[#FF6A2B] px-2 py-0.5 rounded bg-[#FF6A2B]/10 border border-[#FF6A2B]/20">
+                11 memories
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                onSelectUser({
+                  id: "marcus_vance",
+                  name: "Marcus Vance",
+                  email: "marcus@biotech.ai",
+                  provider: "email",
+                });
+                setSuccessMessage("Switched to Marcus (11 memories loaded)");
+                setTimeout(() => onClose(), 500);
+              }}
+              className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-white/5 border border-[rgba(23,25,28,0.1)] hover:border-[#4285F4] transition-all text-left"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Avatar className="h-7 w-7 bg-[#4285F4]/15 border border-[#4285F4]/30">
+                  <AvatarFallback className="text-[11px] text-[#4285F4] font-semibold">MV</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-medium truncate">Marcus Vance</span>
+                  <span className="text-[10px] text-[#6F7378] truncate">AI Researcher • Boston</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-medium text-[#4285F4] px-2 py-0.5 rounded bg-[#4285F4]/10 border border-[#4285F4]/20">
+                11 memories
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Authentication Options (if guest or wanting to switch account) */}
         <div className="flex flex-col gap-3">
           {/* 1. Continue with Google Button */}

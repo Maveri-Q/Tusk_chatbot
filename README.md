@@ -60,6 +60,27 @@ Walrus Memory Relayer ──> Seal Encryption ──> Sui & Walrus Blob Storage
 
 ---
 
+## 👥 3 Showcase Users (10+ Walrus Memories Each)
+
+Per the Session 8 hackathon submission requirements, Tusk includes 3 distinct, fully populated user personas with 10+ cryptographic Walrus memories each. You can switch between them with **1 click** in the app:
+
+| User | Namespace | Role | Stored Facts | Example Prompt to Try |
+|---|---|---|---|---|
+| **Tobe Otuonye** | `personal:tobeotuonye` | Fullstack Engineer & Founder | **12 memories** | *"What telescope do I use and what coffee do I drink?"* |
+| **Sarah Lin** | `personal:sarah_lin` | Principal Product Designer | **11 memories** | *"What spatial grid and tea do I prefer in my design workflow?"* |
+| **Marcus Vance** | `personal:marcus_vance` | Senior AI Research Engineer | **11 memories** | *"What is my dog's name and what is my chess rating?"* |
+
+### How to test them:
+1. Click **"Sign In"** (or your profile icon in the top right / sidebar).
+2. Click any of the 3 **Demo Profiles** in the modal.
+3. Open the **Memory Lens** drawer on the right to inspect all 10+ memories, their categories, relevance scores, and Walrus blob IDs.
+4. Ask personal recall questions to see the bot accurately recall their specific facts.
+5. Notice that switching users **completely isolates context**—Alice never recalls Bob's facts!
+
+*(To re-seed or verify all 3 users programmatically, open `GET /api/seed`)*
+
+---
+
 ## 🛡️ How to Enable Advanced Tools (Judges Guide)
 
 By default, technical indicators and security tools are kept minimal for everyday users. To reveal the **Security Tab**, **Relayer Status Dot**, and **"Attack Me" Demo**:
