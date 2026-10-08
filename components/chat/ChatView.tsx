@@ -17,6 +17,7 @@ interface ChatViewProps {
   onToggleMemory: (val: boolean) => void;
   userDisplayName?: string;
   showMemoryBadges?: boolean;
+  onEditMessage?: (messageId: string, newContent: string) => void;
 }
 
 export function ChatView({
@@ -29,6 +30,7 @@ export function ChatView({
   onToggleMemory,
   userDisplayName = "Explorer",
   showMemoryBadges = false,
+  onEditMessage,
 }: ChatViewProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -98,6 +100,8 @@ export function ChatView({
               key={msg.id}
               message={msg}
               showMemoryBadges={showMemoryBadges}
+              onEdit={onEditMessage}
+              isLoading={isLoading}
             />
           ))
         )}

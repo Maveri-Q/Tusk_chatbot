@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Brain, ChevronDown, Copy, Check, FileText, Image as ImageIcon } from "lucide-react";
+import { Brain, ChevronDown, Copy, Check, FileText, Image as ImageIcon, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface RecalledMemory {
@@ -33,6 +33,8 @@ export interface ChatMessage {
 interface MessageBubbleProps {
   message: ChatMessage;
   showMemoryBadges?: boolean;
+  onEdit?: (messageId: string, newContent: string) => void;
+  isLoading?: boolean;
 }
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
@@ -73,18 +75,48 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   );
 }
 
-export function MessageBubble({ message, showMemoryBadges = false }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  showMemoryBadges = false,
+  onEdit,
+  isLoading = false,
+}: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [showRecalled, setShowRecalled] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState(message.content);
+  const [copied, setCopied] = useState(false);
 
   const memories = message.recalledMemories || [];
   const attachments = message.attachments || [];
 
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveEdit = () => {
+    const trimmed = editDraft.trim();
+    if (!trimmed || trimmed === message.content.trim()) {
+      setIsEditing(false);
+      setEditDraft(message.content);
+      return;
+    }
+    setIsEditing(false);
+    onEdit?.(message.id, trimmed);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditDraft(message.content);
+  };
+
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 w-full max-w-2xl py-2",
+        "group flex flex-col gap-1 w-full max-w-2xl py-2 relative",
         isUser ? "ml-auto items-end" : "mr-auto items-start"
       )}
     >
@@ -105,7 +137,9 @@ export function MessageBubble({ message, showMemoryBadges = false }: MessageBubb
         className={cn(
           "rounded-2xl text-sm leading-relaxed p-4 transition-all shadow-sm",
           isUser
-            ? "bg-[#17191C] text-[#F7F7F5] font-normal rounded-tr-sm max-w-[85%]"
+            ? isEditing
+              ? "bg-[#17191C] text-[#F7F7F5] font-normal rounded-tr-sm w-full border border-flare/40 shadow-md"
+              : "bg-[#17191C] text-[#F7F7F5] font-normal rounded-tr-sm max-w-[85%]"
             : "bg-bg-elev-2 text-text border border-border rounded-tl-sm max-w-full"
         )}
       >
@@ -149,7 +183,50 @@ export function MessageBubble({ message, showMemoryBadges = false }: MessageBubb
         )}
 
         {isUser ? (
-          <div className="whitespace-pre-wrap">{message.content}</div>
+          isEditing ? (
+            <div className="flex flex-col gap-2.5 w-full">
+              <div className="flex items-center justify-between text-[11px] font-mono text-[#FF854D]">
+                <span>Edit your message</span>
+                <span className="text-[10px] text-[#A6ABB3]">Esc to cancel · Enter to send</span>
+              </div>
+              <textarea
+                value={editDraft}
+                onChange={(e) => setEditDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveEdit();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    handleCancelEdit();
+                  }
+                }}
+                rows={Math.min(8, Math.max(2, editDraft.split("\n").length))}
+                className="w-full bg-[#121417] text-[#F7F7F5] border border-white/20 rounded-xl p-3 text-sm focus:outline-none focus:border-flare focus:ring-1 focus:ring-flare resize-none leading-relaxed font-sans placeholder-text-muted"
+                autoFocus
+                placeholder="Edit your message..."
+              />
+              <div className="flex items-center justify-end gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#A6ABB3] hover:text-[#F7F7F5] bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={!editDraft.trim() || editDraft.trim() === message.content.trim() || isLoading}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-flare text-white hover:bg-flare-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-1.5"
+                >
+                  <span>Save & Resubmit</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap">{message.content}</div>
+          )
         ) : !message.content ? (
           <div className="flex items-center gap-1.5 py-1 px-1 text-xs text-text-muted">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-soft animate-pulse" />
@@ -192,6 +269,43 @@ export function MessageBubble({ message, showMemoryBadges = false }: MessageBubb
           </div>
         )}
       </div>
+
+      {/* User Action Bar (Edit & Copy) */}
+      {isUser && !isEditing && (
+        <div className="flex items-center gap-1.5 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity px-1 -mt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setEditDraft(message.content);
+              setIsEditing(true);
+            }}
+            disabled={isLoading}
+            title="Edit this request"
+            className="inline-flex items-center gap-1 text-[11px] text-[#A6ABB3] hover:text-[#F7F7F5] px-2 py-0.5 rounded hover:bg-white/5 transition-colors disabled:opacity-40"
+          >
+            <Pencil className="h-3 w-3 text-[#A6ABB3]" />
+            <span>Edit</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            title="Copy message"
+            className="inline-flex items-center gap-1 text-[11px] text-[#A6ABB3] hover:text-[#F7F7F5] px-2 py-0.5 rounded hover:bg-white/5 transition-colors"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-[#42C98A]" />
+                <span className="text-[#42C98A]">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 text-[#A6ABB3]" />
+                <span>Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Recalled Memories Row: Hidden by default; only shown when showMemoryBadges=true (e.g. dev mode) */}
       {!isUser && showMemoryBadges && memories.length > 0 && (

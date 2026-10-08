@@ -252,29 +252,12 @@ export default function ChatPage() {
     }
   };
 
-  // Submit message in active session (supports text and multimodal attachments)
-  const handleSubmit = async (attachments?: ComposerAttachment[]) => {
-    if ((!input.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
-
-    const userText = input.trim();
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content:
-        userText ||
-        (attachments && attachments.length > 0
-          ? `Uploaded ${attachments.length} file(s)`
-          : ""),
-      attachments: attachments?.map((a) => ({
-        id: a.id,
-        name: a.name,
-        type: a.type,
-        size: a.size,
-        dataUrl: a.dataUrl,
-        textContent: a.textContent,
-      })),
-    };
-
+  // Stream assistant response for a given message sequence
+  const streamAssistantResponse = async (
+    currentMsgs: ChatMessage[],
+    titleCandidate?: string
+  ) => {
+    setIsLoading(true);
     const assistantId = `assistant-${Date.now()}`;
     const assistantPlaceholder: ChatMessage = {
       id: assistantId,
@@ -282,18 +265,12 @@ export default function ChatPage() {
       content: "",
     };
 
-    const currentMsgs = [...messages, userMsg];
-    const newMessagesList = [...messages, userMsg, assistantPlaceholder];
-
+    const newMessagesList = [...currentMsgs, assistantPlaceholder];
     setMessages(newMessagesList);
-    setInput("");
-    setIsLoading(true);
 
     // Update session title if this is the first message
     let sessionTitle = sessions.find((s) => s.id === activeSessionId)?.title || "Conversation";
-    if (sessionTitle === "New Conversation") {
-      const titleCandidate =
-        userText || (attachments?.[0]?.name ? `File: ${attachments[0].name}` : "Conversation");
+    if (sessionTitle === "New Conversation" && titleCandidate) {
       sessionTitle = titleCandidate.length > 28 ? `${titleCandidate.slice(0, 28)}...` : titleCandidate;
     }
 
@@ -400,8 +377,7 @@ export default function ChatPage() {
 
       // Finalize and persist messages in the active session
       const finalMsgList: ChatMessage[] = [
-        ...messages,
-        userMsg,
+        ...currentMsgs,
         {
           id: assistantId,
           role: "assistant",
@@ -436,8 +412,7 @@ export default function ChatPage() {
       const errorMsgText = `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`;
 
       const finalMsgList: ChatMessage[] = [
-        ...messages,
-        userMsg,
+        ...currentMsgs,
         {
           id: assistantId,
           role: "assistant",
@@ -461,6 +436,62 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Submit message in active session (supports text and multimodal attachments)
+  const handleSubmit = async (attachments?: ComposerAttachment[]) => {
+    if ((!input.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
+
+    const userText = input.trim();
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content:
+        userText ||
+        (attachments && attachments.length > 0
+          ? `Uploaded ${attachments.length} file(s)`
+          : ""),
+      attachments: attachments?.map((a) => ({
+        id: a.id,
+        name: a.name,
+        type: a.type,
+        size: a.size,
+        dataUrl: a.dataUrl,
+        textContent: a.textContent,
+      })),
+    };
+
+    const currentMsgs = [...messages, userMsg];
+    setInput("");
+
+    const titleCandidate =
+      userText || (attachments?.[0]?.name ? `File: ${attachments[0].name}` : "Conversation");
+
+    await streamAssistantResponse(currentMsgs, titleCandidate);
+  };
+
+  // Edit a previously sent user message, truncate subsequent turns, and regenerate response
+  const handleEditMessage = async (messageId: string, newContent: string) => {
+    if (isLoading || !newContent.trim()) return;
+
+    const targetIdx = messages.findIndex((m) => m.id === messageId);
+    if (targetIdx === -1) return;
+
+    const targetMsg = messages[targetIdx];
+    if (targetMsg.role !== "user") return;
+
+    const updatedUserMsg: ChatMessage = {
+      ...targetMsg,
+      content: newContent.trim(),
+    };
+
+    // Truncate subsequent history from this turn and resubmit
+    const truncatedHistory = [...messages.slice(0, targetIdx), updatedUserMsg];
+
+    await streamAssistantResponse(
+      truncatedHistory,
+      targetIdx === 0 ? updatedUserMsg.content : undefined
+    );
   };
 
   const isLoggedIn = currentUser.id !== "guest";
@@ -521,6 +552,7 @@ export default function ChatPage() {
             onToggleMemory={setMemoryEnabled}
             userDisplayName={isLoggedIn ? currentUser.name : "Explorer"}
             showMemoryBadges={advancedTools}
+            onEditMessage={handleEditMessage}
           />
 
           {/* Memory Lens Right Panel: Hidden by default */}
