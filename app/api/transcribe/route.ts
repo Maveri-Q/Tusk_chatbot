@@ -8,7 +8,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid audio data" }, { status: 400 });
     }
 
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const rawApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const apiKey = rawApiKey
+      ? (rawApiKey.includes("=") ? rawApiKey.split("=").pop() || rawApiKey : rawApiKey)
+          .replace(/^["']|["']$/g, "")
+          .trim()
+      : "";
     if (!apiKey) {
       return NextResponse.json({ error: "Missing Gemini API key" }, { status: 500 });
     }

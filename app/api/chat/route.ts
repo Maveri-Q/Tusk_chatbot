@@ -17,6 +17,29 @@ export const maxDuration = 30;
 export const dynamic = "force-dynamic";
 
 /**
+ * Aggressively sanitizes API keys from environment variables.
+ * Automatically cleans:
+ * - Trailing/leading whitespace and newlines
+ * - Enclosing single or double quotes
+ * - Accidental variable prefixes if user pasted "GOOGLE_GENERATIVE_AI_API_KEY=..." into the value field
+ * - "Bearer " prefixes
+ */
+export function cleanApiKey(raw?: string): string {
+  if (!raw) return "";
+  let key = raw.trim();
+  key = key.replace(/^["']|["']$/g, "").trim();
+  if (key.includes("=")) {
+    const parts = key.split("=");
+    key = parts[parts.length - 1].trim();
+    key = key.replace(/^["']|["']$/g, "").trim();
+  }
+  if (key.toLowerCase().startsWith("bearer ")) {
+    key = key.slice(7).trim();
+  }
+  return key;
+}
+
+/**
  * Normalizes user-specified or environment model IDs to valid, active Gemini endpoints.
  * Protects against deprecated models (e.g. gemini-1.5-*, gemini-2.0-*, gemini-2.5-*, gemini-pro-*).
  */
@@ -99,8 +122,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // Sanitize API key (strip any stray quotes or whitespace from copy-paste)
-    const apiKey = rawApiKey.replace(/^["']|["']$/g, "").trim();
+    // Sanitize API key (strip variable names, enclosing quotes, "Bearer", or whitespace)
+    const apiKey = cleanApiKey(rawApiKey);
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ error: "Invalid GOOGLE_GENERATIVE_AI_API_KEY value provided." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
     const google = createGoogleGenerativeAI({ apiKey });
 
     const rawModelId = process.env.TUSK_MODEL_ID;

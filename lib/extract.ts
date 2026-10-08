@@ -49,11 +49,26 @@ function normalizeModelId(requested?: string): string {
   return "gemini-flash-lite-latest";
 }
 
+function cleanApiKey(raw?: string): string {
+  if (!raw) return "";
+  let key = raw.trim();
+  key = key.replace(/^["']|["']$/g, "").trim();
+  if (key.includes("=")) {
+    const parts = key.split("=");
+    key = parts[parts.length - 1].trim();
+    key = key.replace(/^["']|["']$/g, "").trim();
+  }
+  if (key.toLowerCase().startsWith("bearer ")) {
+    key = key.slice(7).trim();
+  }
+  return key;
+}
+
 /**
  * Extracts durable, third-person facts from user input using Gemini structured output.
  */
 export async function extractDurableFacts(userMessage: string): Promise<ExtractedFact[]> {
-  const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  const apiKey = cleanApiKey(process.env.GOOGLE_GENERATIVE_AI_API_KEY);
   if (!apiKey || !userMessage.trim()) return [];
 
   const google = createGoogleGenerativeAI({ apiKey });
