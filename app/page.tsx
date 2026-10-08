@@ -1,26 +1,44 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { EnvironmentProvider } from "@/components/landing/EnvironmentContext";
 import { IntelligenceField } from "@/components/landing/IntelligenceField";
+import { InteractionLens } from "@/components/landing/InteractionLens";
 import { IntelligenceMark } from "@/components/landing/IntelligenceMark";
 import { InteractiveChatbotObject } from "@/components/landing/InteractiveChatbotObject";
 import { EditorialPillars } from "@/components/landing/EditorialPillars";
+import { MagneticButton } from "@/components/landing/MagneticButton";
 
-export default function LandingPage() {
-  const [isTyping, setIsTyping] = useState(false);
-  const [sendSignalTime, setSendSignalTime] = useState(0);
+function LandingContent() {
+  const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <main className="min-h-screen bg-[#F7F7F5] text-[#17191C] flex flex-col justify-between selection:bg-[#C8F5DE] selection:text-[#167A55] relative overflow-hidden">
-      {/* Microscopic Particle Intelligence Field (Canvas with Spring Physics & Mouse Memory) */}
-      <IntelligenceField
-        chatbotAnchorId="chatbot-hero-anchor"
-        isTyping={isTyping}
-        sendSignalTimestamp={sendSignalTime}
+      {/* Background Depth Layer 1: Atmospheric Haze & Subtle Light Field */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 opacity-40 transition-transform duration-75"
+        style={{
+          transform: `translate3d(0, ${scrollY * 0.12}px, 0)`,
+          background:
+            "radial-gradient(circle 800px at 50% 35%, rgba(200,245,222,0.18) 0%, rgba(141,232,191,0.06) 45%, transparent 75%)",
+        }}
       />
+
+      {/* Background Depth Layer 2: Microscopic Canvas Intelligence Field with Physics Engine */}
+      <IntelligenceField chatbotAnchorId="chatbot-hero-anchor" />
+
+      {/* Secondary Gravitational Interaction Lens (Follows cursor smoothly) */}
+      <InteractionLens />
 
       {/* Minimal Editorial Navigation */}
       <nav className="relative h-20 px-6 sm:px-12 flex items-center justify-between z-20 max-w-6xl mx-auto w-full">
@@ -31,18 +49,20 @@ export default function LandingPage() {
           </span>
         </div>
 
-        <Link href="/chat">
-          <button className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium text-[#17191C] bg-[#FAF9F6] border border-[rgba(23,25,28,0.09)] hover:border-[rgba(23,25,28,0.22)] shadow-sm hover:shadow active:scale-98 transition-all">
-            <span>Open Chat</span>
-            <ArrowRight className="h-3 w-3 text-[#167A55]" />
-          </button>
-        </Link>
+        <MagneticButton magneticRadius={70} magneticPull={0.25}>
+          <Link href="/chat">
+            <button className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium text-[#17191C] bg-white/70 backdrop-blur-md border border-[rgba(23,25,28,0.09)] hover:border-[rgba(22,122,85,0.3)] shadow-xs hover:shadow-sm active:scale-95 transition-all">
+              <span>Open Chat</span>
+              <ArrowRight className="h-3 w-3 text-[#167A55]" />
+            </button>
+          </Link>
+        </MagneticButton>
       </nav>
 
       {/* Hero Section with Negative Space & Chatbot Center of Gravity */}
       <section className="relative flex-1 flex flex-col items-center justify-center text-center px-6 pt-12 pb-20 max-w-5xl mx-auto z-10 w-full">
         {/* Track Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF9F6] border border-[rgba(23,25,28,0.08)] text-[11px] font-mono text-[#167A55] mb-8 shadow-sm">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/60 backdrop-blur-md border border-[rgba(23,25,28,0.08)] text-[11px] font-mono text-[#167A55] mb-8 shadow-xs">
           <span className="h-1.5 w-1.5 rounded-full bg-[#167A55]" />
           <span>Built for Walrus Session 8: Chatbots That Remember</span>
         </div>
@@ -57,27 +77,29 @@ export default function LandingPage() {
           Encrypted with Seal. Stored on decentralized Walrus storage. Yours across conversations, accounts, and every device.
         </p>
 
-        {/* Action Controls (Existing Project Copy) */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 mt-8 mb-16">
-          <Link href="/chat">
-            <button className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#17191C] text-[#F7F7F5] text-xs font-semibold hover:bg-[#167A55] active:scale-98 shadow-sm hover:shadow transition-all">
-              <span>Start chatting</span>
-              <ArrowRight className="h-3.5 w-3.5 text-[#8DE8BF]" />
-            </button>
-          </Link>
-          <a href="#how-it-works">
-            <button className="px-5 py-2.5 rounded-full text-xs font-medium text-[#6F7378] hover:text-[#17191C] transition-colors">
-              See how it works
-            </button>
-          </a>
+        {/* Action Controls with Magnetic Physics */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 mt-8 mb-16">
+          <MagneticButton magneticRadius={90} magneticPull={0.28}>
+            <Link href="/chat">
+              <button className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#17191C] text-[#F7F7F5] text-xs font-semibold hover:bg-[#167A55] active:scale-95 shadow-sm hover:shadow-md transition-all">
+                <span>Start chatting</span>
+                <ArrowRight className="h-3.5 w-3.5 text-[#8DE8BF]" />
+              </button>
+            </Link>
+          </MagneticButton>
+
+          <MagneticButton magneticRadius={70} magneticPull={0.22}>
+            <a href="#how-it-works">
+              <button className="px-5 py-2.5 rounded-full text-xs font-medium text-[#6F7378] hover:text-[#17191C] bg-white/40 hover:bg-white/70 backdrop-blur-sm border border-transparent hover:border-[rgba(23,25,28,0.06)] transition-all">
+                See how it works
+              </button>
+            </a>
+          </MagneticButton>
         </div>
 
         {/* Central Visual Focus: The Physical Chatbot Object */}
         <div className="w-full flex justify-center">
-          <InteractiveChatbotObject
-            onTypingStateChange={setIsTyping}
-            onSendSignal={() => setSendSignalTime(Date.now())}
-          />
+          <InteractiveChatbotObject />
         </div>
       </section>
 
@@ -91,5 +113,13 @@ export default function LandingPage() {
         <p>Tusk • Powered by Mysten Labs Walrus Memory & Google Gemini</p>
       </footer>
     </main>
+  );
+}
+
+export default function LandingPage() {
+  return (
+    <EnvironmentProvider>
+      <LandingContent />
+    </EnvironmentProvider>
   );
 }

@@ -3,9 +3,17 @@
 import React, { useState } from "react";
 import { ShieldCheck, HardDrive, Cpu, Smartphone, Check } from "lucide-react";
 import { IntelligenceMark } from "./IntelligenceMark";
+import { MagneticButton } from "./MagneticButton";
+import { useEnvironment } from "./EnvironmentContext";
 
 export function EditorialPillars() {
   const [activeSplitTab, setActiveSplitTab] = useState<"without" | "with">("with");
+  const { triggerRipple } = useEnvironment();
+
+  const handleTabSwitch = (tab: "without" | "with", e: React.MouseEvent) => {
+    setActiveSplitTab(tab);
+    triggerRipple(e.clientX, e.clientY, "click", 260);
+  };
 
   return (
     <section className="relative z-10 w-full max-w-5xl mx-auto px-6 py-28 flex flex-col gap-24">
@@ -22,27 +30,31 @@ export function EditorialPillars() {
           </div>
 
           {/* Toggle pill */}
-          <div className="inline-flex p-1 rounded-full bg-[#F0EFEA] border border-[rgba(23,25,28,0.08)] self-start sm:self-auto">
-            <button
-              onClick={() => setActiveSplitTab("without")}
-              className={`px-3.5 py-1 rounded-full text-xs font-medium transition-all ${
-                activeSplitTab === "without"
-                  ? "bg-[#FAF9F6] text-[#17191C] shadow-sm"
-                  : "text-[#6F7378] hover:text-[#17191C]"
-              }`}
-            >
-              Without memory
-            </button>
-            <button
-              onClick={() => setActiveSplitTab("with")}
-              className={`px-3.5 py-1 rounded-full text-xs font-medium transition-all ${
-                activeSplitTab === "with"
-                  ? "bg-[#167A55] text-[#F7F7F5] shadow-sm"
-                  : "text-[#6F7378] hover:text-[#17191C]"
-              }`}
-            >
-              With memory
-            </button>
+          <div className="inline-flex p-1 rounded-full bg-white/40 backdrop-blur-md border border-[rgba(23,25,28,0.08)] self-start sm:self-auto shadow-xs">
+            <MagneticButton magneticRadius={50} magneticPull={0.2}>
+              <button
+                onClick={(e) => handleTabSwitch("without", e)}
+                className={`px-3.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  activeSplitTab === "without"
+                    ? "bg-[#FAF9F6] text-[#17191C] shadow-sm border border-[rgba(23,25,28,0.06)]"
+                    : "text-[#6F7378] hover:text-[#17191C]"
+                }`}
+              >
+                Without memory
+              </button>
+            </MagneticButton>
+            <MagneticButton magneticRadius={50} magneticPull={0.2}>
+              <button
+                onClick={(e) => handleTabSwitch("with", e)}
+                className={`px-3.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  activeSplitTab === "with"
+                    ? "bg-[#167A55] text-[#F7F7F5] shadow-sm"
+                    : "text-[#6F7378] hover:text-[#17191C]"
+                }`}
+              >
+                With memory
+              </button>
+            </MagneticButton>
           </div>
         </div>
 
@@ -50,10 +62,10 @@ export function EditorialPillars() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Card A: Without Memory */}
           <div
-            className={`p-6 sm:p-7 rounded-[18px] bg-[#FAF9F6] border transition-all ${
+            className={`p-6 sm:p-7 rounded-[20px] backdrop-blur-[12px] bg-white/45 border transition-all duration-300 ${
               activeSplitTab === "without"
-                ? "border-[rgba(23,25,28,0.2)] shadow-tactile ring-1 ring-[rgba(23,25,28,0.08)]"
-                : "border-[rgba(23,25,28,0.06)] opacity-70"
+                ? "border-[rgba(23,25,28,0.18)] shadow-[0_20px_48px_-12px_rgba(23,25,28,0.08)] ring-1 ring-[rgba(23,25,28,0.06)]"
+                : "border-[rgba(23,25,28,0.06)] opacity-60 hover:opacity-85"
             }`}
           >
             <div className="flex items-center justify-between pb-4 border-b border-[rgba(23,25,28,0.06)]">
@@ -61,10 +73,10 @@ export function EditorialPillars() {
               <span className="text-[10px] text-[#6F7378] font-mono">Standard Chatbot</span>
             </div>
             <div className="mt-5 flex flex-col gap-3">
-              <div className="self-end rounded-[10px] bg-[#17191C] text-[#F7F7F5] px-3.5 py-2 text-xs">
+              <div className="self-end rounded-[12px] bg-[#17191C] text-[#F7F7F5] px-3.5 py-2 text-xs shadow-xs">
                 What do you know about me?
               </div>
-              <div className="self-start rounded-[10px] bg-[#F0EFEA] text-[#17191C] p-3.5 text-xs leading-relaxed max-w-[90%]">
+              <div className="self-start rounded-[12px] bg-white/70 border border-[rgba(23,25,28,0.06)] text-[#17191C] p-3.5 text-xs leading-relaxed max-w-[90%] shadow-xs">
                 I don't have access to past conversations. Could you remind me what you're working on?
               </div>
             </div>
@@ -72,10 +84,10 @@ export function EditorialPillars() {
 
           {/* Card B: With Memory */}
           <div
-            className={`p-6 sm:p-7 rounded-[18px] bg-[#FAF9F6] border transition-all ${
+            className={`p-6 sm:p-7 rounded-[20px] backdrop-blur-[12px] bg-white/55 border transition-all duration-300 ${
               activeSplitTab === "with"
-                ? "border-[#8DE8BF] shadow-tactile ring-1 ring-[#42C98A]/30"
-                : "border-[rgba(23,25,28,0.06)] opacity-70"
+                ? "border-[#8DE8BF] shadow-[0_24px_56px_-12px_rgba(66,201,138,0.15)] ring-1 ring-[#42C98A]/30"
+                : "border-[rgba(23,25,28,0.06)] opacity-60 hover:opacity-85"
             }`}
           >
             <div className="flex items-center justify-between pb-4 border-b border-[rgba(23,25,28,0.06)]">
@@ -88,10 +100,10 @@ export function EditorialPillars() {
               </span>
             </div>
             <div className="mt-5 flex flex-col gap-3">
-              <div className="self-end rounded-[10px] bg-[#17191C] text-[#F7F7F5] px-3.5 py-2 text-xs">
+              <div className="self-end rounded-[12px] bg-[#17191C] text-[#F7F7F5] px-3.5 py-2 text-xs shadow-xs">
                 What do you know about me?
               </div>
-              <div className="self-start rounded-[10px] bg-[#F0EFEA] border border-[rgba(22,122,85,0.18)] text-[#17191C] p-3.5 text-xs leading-relaxed max-w-[95%] flex flex-col gap-2">
+              <div className="self-start rounded-[12px] bg-white/80 border border-[rgba(22,122,85,0.22)] text-[#17191C] p-3.5 text-xs leading-relaxed max-w-[95%] flex flex-col gap-2 shadow-xs">
                 <span className="text-[10px] text-[#167A55] font-mono flex items-center gap-1.5">
                   <IntelligenceMark size={10} active={true} />
                   <span>Remembered 2 things (92% relevance)</span>
@@ -116,12 +128,12 @@ export function EditorialPillars() {
           </h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-left">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
           {/* Pillar 1 */}
-          <div className="flex flex-col gap-3.5 p-6 rounded-[18px] bg-[#FAF9F6] border border-[rgba(23,25,28,0.07)] shadow-sm hover:border-[rgba(23,25,28,0.15)] transition-all">
+          <div className="group flex flex-col gap-3.5 p-6 rounded-[20px] backdrop-blur-[10px] bg-white/45 border border-[rgba(23,25,28,0.07)] shadow-xs hover:border-[rgba(22,122,85,0.25)] hover:shadow-[0_16px_36px_-10px_rgba(23,25,28,0.06)] hover:-translate-y-1 transition-all duration-300">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-[#167A55] font-semibold">01</span>
-              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55]">
+              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55] group-hover:scale-110 transition-transform">
                 <Cpu className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -134,10 +146,10 @@ export function EditorialPillars() {
           </div>
 
           {/* Pillar 2 */}
-          <div className="flex flex-col gap-3.5 p-6 rounded-[18px] bg-[#FAF9F6] border border-[rgba(23,25,28,0.07)] shadow-sm hover:border-[rgba(23,25,28,0.15)] transition-all">
+          <div className="group flex flex-col gap-3.5 p-6 rounded-[20px] backdrop-blur-[10px] bg-white/45 border border-[rgba(23,25,28,0.07)] shadow-xs hover:border-[rgba(22,122,85,0.25)] hover:shadow-[0_16px_36px_-10px_rgba(23,25,28,0.06)] hover:-translate-y-1 transition-all duration-300">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-[#167A55] font-semibold">02</span>
-              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55]">
+              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55] group-hover:scale-110 transition-transform">
                 <ShieldCheck className="h-3.5 w-3.5" />
               </div>
             </div>
@@ -150,10 +162,10 @@ export function EditorialPillars() {
           </div>
 
           {/* Pillar 3 */}
-          <div className="flex flex-col gap-3.5 p-6 rounded-[18px] bg-[#FAF9F6] border border-[rgba(23,25,28,0.07)] shadow-sm hover:border-[rgba(23,25,28,0.15)] transition-all">
+          <div className="group flex flex-col gap-3.5 p-6 rounded-[20px] backdrop-blur-[10px] bg-white/45 border border-[rgba(23,25,28,0.07)] shadow-xs hover:border-[rgba(22,122,85,0.25)] hover:shadow-[0_16px_36px_-10px_rgba(23,25,28,0.06)] hover:-translate-y-1 transition-all duration-300">
             <div className="flex items-center justify-between">
               <span className="font-mono text-xs text-[#167A55] font-semibold">03</span>
-              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55]">
+              <div className="h-7 w-7 rounded-full bg-[#C8F5DE]/60 border border-[#8DE8BF]/40 flex items-center justify-center text-[#167A55] group-hover:scale-110 transition-transform">
                 <Smartphone className="h-3.5 w-3.5" />
               </div>
             </div>
