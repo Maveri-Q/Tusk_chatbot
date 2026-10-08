@@ -1,5 +1,5 @@
 import { streamText } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
   recallMemoriesSafely,
   rememberFactSafely,
@@ -12,6 +12,27 @@ import { isForgotten, setMemoryMetadata } from "@/lib/redis";
 import { screenReadMemory, screenWriteFact } from "@/lib/firewall";
 import { extractDurableFacts } from "@/lib/extract";
 import { buildSystemPrompt } from "@/lib/prompts";
+
+export const maxDuration = 30;
+export const dynamic = "force-dynamic";
+
+/**
+ * Normalizes user-specified or environment model IDs to valid, active Gemini endpoints.
+ */
+function normalizeModelId(requested?: string): string {
+  if (!requested) return "gemini-flash-lite-latest";
+  const lower = requested.toLowerCase().trim();
+  if (
+    lower === "gemini-1.5-flash" ||
+    lower === "gemini-1.5-flash-latest" ||
+    lower === "gemini-1.5-pro" ||
+    lower === "gemini-pro" ||
+    lower === "gemini-flash"
+  ) {
+    return "gemini-flash-lite-latest";
+  }
+  return requested.trim();
+}
 
 export async function POST(req: Request) {
   try {
@@ -43,7 +64,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const modelId = process.env.TUSK_MODEL_ID || "gemini-flash-lite-latest";
+    const google = createGoogleGenerativeAI({ apiKey });
+    const modelId = normalizeModelId(process.env.TUSK_MODEL_ID);
     const namespace = getPersonalNamespace(userId);
 
     // Find the last user message for recall & query expansion
@@ -153,17 +175,40 @@ export async function POST(req: Request) {
       };
     });
 
-    // 5. Stream response with high-speed Gemini
-    const result = streamText({
-      model: google(modelId),
-      system: systemPrompt,
-      messages: formattedMessages,
-      maxRetries: 1,
+    // Filter out empty messages that cause Gemini API errors
+    const validMessages = formattedMessages.filter((m: any) => {
+      if (Array.isArray(m.content)) return m.content.length > 0;
+      return typeof m.content === "string" && m.content.trim().length > 0;
     });
+
+    if (validMessages.length === 0) {
+      validMessages.push({
+        role: "user",
+        content: lastUserMsg || "Hello",
+      });
+    }
+
+    // 5. Stream response with high-speed Gemini with automatic resilience
+    let result;
+    try {
+      result = streamText({
+        model: google(modelId),
+        system: systemPrompt,
+        messages: validMessages,
+        maxRetries: 2,
+      });
+    } catch (e) {
+      console.warn(`Primary model ${modelId} failed, falling back to gemini-2.5-flash:`, e);
+      result = streamText({
+        model: google("gemini-2.5-flash"),
+        system: systemPrompt,
+        messages: validMessages,
+        maxRetries: 2,
+      });
+    }
 
     // 6. Background Asynchronous Fact Extraction and Walrus Storage
     if (memoryEnabled && lastUserMsg.trim()) {
-      // Fire-and-forget background pipeline
       (async () => {
         try {
           const facts = await extractDurableFacts(lastUserMsg);

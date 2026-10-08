@@ -3,6 +3,7 @@ import { withMemWal } from "@mysten-incubation/memwal/ai";
 import type { LanguageModel } from "ai";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 
 let clientInstance: MemWal | null = null;
 
@@ -45,25 +46,29 @@ export interface StoredFactItem {
 }
 
 // Persistent Disk Helper to survive worker reloads & ensure 0ms availability
-function getMemoryFilePath(namespace: string): string {
-  const dir = path.join(process.cwd(), ".data", "memories");
-  if (!fs.existsSync(dir)) {
-    try {
+function getMemoryFilePath(namespace: string): string | null {
+  try {
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NODE_ENV === "production");
+    const baseDir = isServerless ? path.join(os.tmpdir(), "tusk_data") : path.join(process.cwd(), ".data");
+    const dir = path.join(baseDir, "memories");
+    if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-    } catch (_) {}
+    }
+    return path.join(dir, `${namespace}.json`);
+  } catch (_) {
+    return null;
   }
-  return path.join(dir, `${namespace}.json`);
 }
 
 function readDiskMemories(namespace: string): StoredFactItem[] {
   try {
     const file = getMemoryFilePath(namespace);
-    if (fs.existsSync(file)) {
+    if (file && fs.existsSync(file)) {
       const data = JSON.parse(fs.readFileSync(file, "utf8"));
       if (Array.isArray(data)) return data;
     }
   } catch (e) {
-    console.error(`Error reading disk memories for ${namespace}:`, e);
+    // Non-fatal fallback to in-memory map
   }
   return [];
 }
@@ -71,9 +76,11 @@ function readDiskMemories(namespace: string): StoredFactItem[] {
 function writeDiskMemories(namespace: string, items: StoredFactItem[]) {
   try {
     const file = getMemoryFilePath(namespace);
-    fs.writeFileSync(file, JSON.stringify(items, null, 2), "utf8");
+    if (file) {
+      fs.writeFileSync(file, JSON.stringify(items, null, 2), "utf8");
+    }
   } catch (e) {
-    console.error(`Error writing disk memories for ${namespace}:`, e);
+    // Non-fatal: in-memory map handles persistence for worker lifetime
   }
 }
 

@@ -364,9 +364,10 @@ export default function ChatPage() {
         );
       }
 
+      const cleanAccumulated = accumulated.replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "").trimStart();
       const finalContent =
-        accumulated.replace(/<memory_context>[\s\S]*?<\/memory_context>/gi, "").trimStart() ||
-        "I received your message. Let me know what you would like to explore or remember.";
+        cleanAccumulated ||
+        "I'm ready. Let me know what you would like to explore or remember.";
 
       // Finalize and persist messages in the active session
       const finalMsgList: ChatMessage[] = [

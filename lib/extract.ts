@@ -1,5 +1,5 @@
 import { generateObject } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 
 export const FactItemSchema = z.object({
@@ -24,6 +24,21 @@ export const ExtractedFactsSchema = z.object({
 
 export type ExtractedFact = z.infer<typeof FactItemSchema>;
 
+function normalizeModelId(requested?: string): string {
+  if (!requested) return "gemini-flash-lite-latest";
+  const lower = requested.toLowerCase().trim();
+  if (
+    lower === "gemini-1.5-flash" ||
+    lower === "gemini-1.5-flash-latest" ||
+    lower === "gemini-1.5-pro" ||
+    lower === "gemini-pro" ||
+    lower === "gemini-flash"
+  ) {
+    return "gemini-flash-lite-latest";
+  }
+  return requested.trim();
+}
+
 /**
  * Extracts durable, third-person facts from user input using Gemini structured output.
  */
@@ -31,12 +46,13 @@ export async function extractDurableFacts(userMessage: string): Promise<Extracte
   const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!apiKey || !userMessage.trim()) return [];
 
-  const modelId = process.env.TUSK_MODEL_ID || "gemini-flash-lite-latest";
+  const google = createGoogleGenerativeAI({ apiKey });
+  const modelId = normalizeModelId(process.env.TUSK_MODEL_ID);
 
   try {
     const { object } = await generateObject({
       model: google(modelId),
-      maxRetries: 1,
+      maxRetries: 2,
       schema: ExtractedFactsSchema,
       prompt: `Extract up to 5 permanent, durable facts about the user from their message.
 Format each fact as a concise, third-person declarative statement (e.g. "The user prefers dark mode").
@@ -49,7 +65,17 @@ User message:
 
     return object.facts || [];
   } catch (err) {
-    console.error("Fact extraction error:", err);
-    return [];
+    console.warn("Fact extraction primary model attempt error, trying fallback:", err);
+    try {
+      const { object } = await generateObject({
+        model: google("gemini-2.5-flash"),
+        maxRetries: 1,
+        schema: ExtractedFactsSchema,
+        prompt: `Extract up to 5 permanent, durable facts about the user: "${userMessage}"`,
+      });
+      return object.facts || [];
+    } catch (_) {
+      return [];
+    }
   }
 }
