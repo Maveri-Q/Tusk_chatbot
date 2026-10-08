@@ -350,6 +350,30 @@ export default function ChatPage() {
         }
       }
 
+      // Parse newly recorded user request memory so Memory Lens updates immediately!
+      const recHeader = response.headers.get("x-recorded-memory");
+      if (recHeader) {
+        try {
+          const recMem = JSON.parse(decodeURIComponent(recHeader));
+          if (recMem?.blob_id) {
+            setMemories((prev) => {
+              if (
+                prev.some(
+                  (m) =>
+                    m.blob_id === recMem.blob_id ||
+                    m.text.toLowerCase().trim() === recMem.text.toLowerCase().trim()
+                )
+              ) {
+                return prev;
+              }
+              return [recMem, ...prev];
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse recorded memory header:", e);
+        }
+      }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";

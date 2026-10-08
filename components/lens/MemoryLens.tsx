@@ -368,8 +368,14 @@ export function MemoryLens({
                 <p className="text-xs text-text leading-relaxed font-normal">
                   {mem.text}
                 </p>
-                <span className="text-[10px] text-lime font-mono shrink-0 px-1.5 py-0.5 rounded bg-lime/10 border border-lime/20">
-                  Saved
+                <span
+                  className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded border ${
+                    mem.category === "request"
+                      ? "text-[#FF854D] bg-[#FF854D]/10 border-[#FF854D]/30"
+                      : "text-lime bg-lime/10 border border-lime/20"
+                  }`}
+                >
+                  {mem.category === "request" ? "Request" : "Fact"}
                 </span>
               </div>
 
@@ -441,7 +447,13 @@ export function MemoryLens({
                       )}
                     </button>
                   </div>
-                  <span className="text-text truncate">{mem.blob_id}</span>
+                  <span className="text-text truncate select-all">{mem.blob_id}</span>
+                  {mem.category && (
+                    <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[9px]">
+                      <span>Category:</span>
+                      <span className="uppercase text-text font-semibold">{mem.category}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -259,12 +259,44 @@ export async function POST(req: Request) {
     // 5. Get model cascade
     const candidateModels = getModelCascade(modelId);
 
-    // 6. Fast-Path Instant & Background Fact Extraction and Walrus Storage
+    // 6. Record Every User Request in Walrus Memory with its own Blob ID + Extract Granular Facts
+    let recordedRequestMemory: any = null;
+
     if (memoryEnabled && lastUserMsg.trim()) {
-      // 6a. Fast-Path (0ms): Instant rule-based facts saved immediately to disk & Walrus
+      // 6a. Record the user request itself directly into Walrus Memory (guarantees every request has its own blob ID)
+      try {
+        const screened = await screenWriteFact(userId, lastUserMsg.trim());
+        if (screened.allowed) {
+          const reqSave = await rememberFactSafely(screened.sanitizedText, namespace);
+          if (reqSave.success && reqSave.blob_id) {
+            await setMemoryMetadata(userId, reqSave.blob_id, {
+              category: "request",
+              createdAt: new Date().toISOString(),
+              scope: "personal",
+              jobId: reqSave.job_id,
+            });
+
+            recordedRequestMemory = {
+              blob_id: reqSave.blob_id,
+              text: screened.sanitizedText,
+              category: "request",
+              createdAt: new Date().toLocaleDateString(),
+              relevance: 1.0,
+              status: "saved",
+            };
+          }
+        }
+      } catch (err) {
+        console.error("Error recording user request to Walrus:", err);
+      }
+
+      // 6b. Fast-Path (0ms): Instant rule-based facts saved immediately to disk & Walrus
       try {
         const immediateFacts = extractFastFacts(lastUserMsg);
         for (const fact of immediateFacts) {
+          // Skip if exact text is the same as the full user message we just recorded
+          if (fact.text.toLowerCase().trim() === lastUserMsg.toLowerCase().trim()) continue;
+
           (async () => {
             try {
               const screened = await screenWriteFact(userId, fact.text);
@@ -284,19 +316,18 @@ export async function POST(req: Request) {
         }
       } catch (_) {}
 
-      // 6b. Deep extraction for conversational nuances via Gemini
+      // 6c. Deep extraction for conversational nuances via Gemini
       (async () => {
         try {
           const facts = await extractDurableFacts(lastUserMsg);
 
           for (const fact of facts) {
-            // Write-side screening
             if (fact.risk === "suspicious") continue;
+            if (fact.text.toLowerCase().trim() === lastUserMsg.toLowerCase().trim()) continue;
 
             const screened = await screenWriteFact(userId, fact.text);
             if (!screened.allowed) continue;
 
-            // Save to Walrus Memory
             const saveRes = await rememberFactSafely(screened.sanitizedText, namespace);
             if (saveRes.success && saveRes.blob_id) {
               await setMemoryMetadata(userId, saveRes.blob_id, {
@@ -399,6 +430,10 @@ export async function POST(req: Request) {
       "Cache-Control": "no-cache, no-transform",
       "X-Accel-Buffering": "no",
     };
+
+    if (recordedRequestMemory) {
+      headers["x-recorded-memory"] = encodeURIComponent(JSON.stringify(recordedRequestMemory));
+    }
 
     if (usableMemories.length > 0) {
       const metadataPayload = usableMemories.slice(0, 5).map((m) => ({
