@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   title: "Tusk — A Chatbot That Actually Remembers You",
   description: "Encrypted long-term memory stored on Walrus. Yours across conversations, users, and devices.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.svg",
   },
 };
 

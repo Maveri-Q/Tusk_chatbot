@@ -4,6 +4,7 @@ import React from "react";
 import { Brain, PanelRight, User, Menu, LogIn, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TuskSymbol } from "@/components/brand/TuskSymbol";
 
 interface TopBarProps {
   onTogglePanel: () => void;
@@ -42,6 +43,7 @@ export function TopBar({
         </Button>
 
         <div className="flex items-center gap-2">
+          <TuskSymbol size={18} active={true} />
           <span className="font-display font-semibold text-text text-sm sm:text-base">
             Conversation
           </span>
