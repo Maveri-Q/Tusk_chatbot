@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Flame,
   RefreshCw,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -362,35 +363,61 @@ export function MemoryLens({
           return (
             <div
               key={mem.blob_id}
-              className="rounded-sm bg-bg-elev-2 border border-border p-3 flex flex-col gap-2 transition-all hover:border-border-strong group"
+              className="rounded-sm bg-bg-elev-2 border border-border p-3 flex flex-col gap-2.5 transition-all hover:border-border-strong group"
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="text-xs text-text leading-relaxed font-normal">
+                <p className="text-xs text-text leading-relaxed font-normal flex-1">
                   {mem.text}
                 </p>
                 <span
-                  className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded border ${
+                  className={`text-[10px] font-mono shrink-0 px-2 py-0.5 rounded-full border ${
                     mem.category === "request"
-                      ? "text-[#FF854D] bg-[#FF854D]/10 border-[#FF854D]/30"
-                      : "text-lime bg-lime/10 border border-lime/20"
+                      ? "text-[#FF854D] bg-[#FF854D]/10 border-[#FF854D]/30 font-medium"
+                      : "text-lime bg-lime/10 border-lime/30 font-medium"
                   }`}
                 >
                   {mem.category === "request" ? "Request" : "Fact"}
                 </span>
               </div>
 
+              {/* Unique Walrus Blob ID bar - clearly visible on every card */}
+              <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded bg-bg/90 border border-border/80 text-[11px] font-mono">
+                <span className="flex items-center gap-1.5 text-lime font-medium shrink-0">
+                  <Database className="h-3 w-3" />
+                  <span>Walrus Blob:</span>
+                </span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-mono text-text truncate max-w-[130px] sm:max-w-[160px] select-all" title={mem.blob_id}>
+                    {mem.blob_id}
+                  </span>
+                  <button
+                    onClick={() => copyBlobId(mem.blob_id)}
+                    className="p-1 hover:text-text text-text-muted hover:bg-border/40 rounded transition-colors"
+                    title="Copy Walrus Blob ID"
+                    type="button"
+                  >
+                    {copiedId === mem.blob_id ? (
+                      <Check className="h-3 w-3 text-lime" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
               {/* Bottom Card Controls */}
-              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+              <div className="flex items-center justify-between pt-1 border-t border-border/50 text-[11px]">
                 <button
+                  type="button"
                   onClick={() => toggleDetails(mem.blob_id)}
-                  className="text-[11px] text-text-muted hover:text-text flex items-center gap-1 transition-colors"
+                  className="text-text-muted hover:text-text flex items-center gap-1 transition-colors"
                 >
                   <ChevronDown
                     className={`h-3 w-3 transition-transform ${
                       isExpanded ? "rotate-180" : ""
                     }`}
                   />
-                  <span>Details</span>
+                  <span>Technical Details</span>
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -402,6 +429,7 @@ export function MemoryLens({
                   <Popover>
                     <PopoverTrigger asChild>
                       <button
+                        type="button"
                         className="text-text-muted hover:text-danger opacity-70 hover:opacity-100 transition-opacity p-1"
                         aria-label="Forget memory"
                       >
@@ -433,27 +461,21 @@ export function MemoryLens({
 
               {/* Collapsed Technical Details Drawer */}
               {isExpanded && (
-                <div className="rounded bg-bg p-2 text-[10px] font-mono text-text-muted flex flex-col gap-1.5 mt-1 border border-border">
+                <div className="rounded bg-bg p-2.5 text-[10px] font-mono text-text-muted flex flex-col gap-1.5 mt-0.5 border border-border">
                   <div className="flex items-center justify-between">
-                    <span>Walrus Blob ID:</span>
-                    <button
-                      onClick={() => copyBlobId(mem.blob_id)}
-                      className="hover:text-text flex items-center gap-1"
-                    >
-                      {copiedId === mem.blob_id ? (
-                        <Check className="h-3 w-3 text-lime" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
-                    </button>
+                    <span>Status:</span>
+                    <span className="text-lime flex items-center gap-1 font-semibold">
+                      <Check className="h-3 w-3" /> Saved on Walrus
+                    </span>
                   </div>
-                  <span className="text-text truncate select-all">{mem.blob_id}</span>
-                  {mem.category && (
-                    <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[9px]">
-                      <span>Category:</span>
-                      <span className="uppercase text-text font-semibold">{mem.category}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    <span>Category:</span>
+                    <span className="uppercase text-text font-semibold">{mem.category || "preference"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Full Blob Hash:</span>
+                    <span className="text-text truncate select-all max-w-[180px]">{mem.blob_id}</span>
+                  </div>
                 </div>
               )}
             </div>

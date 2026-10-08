@@ -77,7 +77,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
 
 export function MessageBubble({
   message,
-  showMemoryBadges = false,
+  showMemoryBadges = true,
   onEdit,
   isLoading = false,
 }: MessageBubbleProps) {

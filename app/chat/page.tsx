@@ -46,7 +46,10 @@ export default function ChatPage() {
   const loadMemories = useCallback(async (userIdToLoad?: string) => {
     const uid = userIdToLoad || currentUser.id;
     try {
-      const res = await fetch(`/api/memories?userId=${encodeURIComponent(uid)}`);
+      const res = await fetch(`/api/memories?userId=${encodeURIComponent(uid)}&t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" },
+      });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.memories)) {
@@ -357,16 +360,12 @@ export default function ChatPage() {
           const recMem = JSON.parse(decodeURIComponent(recHeader));
           if (recMem?.blob_id) {
             setMemories((prev) => {
-              if (
-                prev.some(
-                  (m) =>
-                    m.blob_id === recMem.blob_id ||
-                    m.text.toLowerCase().trim() === recMem.text.toLowerCase().trim()
-                )
-              ) {
-                return prev;
-              }
-              return [recMem, ...prev];
+              const filtered = prev.filter(
+                (m) =>
+                  m.blob_id !== recMem.blob_id &&
+                  m.text.toLowerCase().trim() !== recMem.text.toLowerCase().trim()
+              );
+              return [recMem, ...filtered];
             });
           }
         } catch (e) {
@@ -573,7 +572,7 @@ export default function ChatPage() {
         />
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Center Chat View: Memory badges hidden by default */}
+          {/* Center Chat View: Memory badges visible */}
           <ChatView
             messages={messages}
             input={input}
@@ -583,7 +582,7 @@ export default function ChatPage() {
             memoryEnabled={memoryEnabled}
             onToggleMemory={setMemoryEnabled}
             userDisplayName={isLoggedIn ? currentUser.name : "Explorer"}
-            showMemoryBadges={advancedTools}
+            showMemoryBadges={true}
             onEditMessage={handleEditMessage}
           />
 

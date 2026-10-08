@@ -267,7 +267,7 @@ export async function POST(req: Request) {
       try {
         const screened = await screenWriteFact(userId, lastUserMsg.trim());
         if (screened.allowed) {
-          const reqSave = await rememberFactSafely(screened.sanitizedText, namespace);
+          const reqSave = await rememberFactSafely(screened.sanitizedText, namespace, "request");
           if (reqSave.success && reqSave.blob_id) {
             await setMemoryMetadata(userId, reqSave.blob_id, {
               category: "request",
@@ -301,7 +301,7 @@ export async function POST(req: Request) {
             try {
               const screened = await screenWriteFact(userId, fact.text);
               if (screened.allowed) {
-                const saveRes = await rememberFactSafely(screened.sanitizedText, namespace);
+                const saveRes = await rememberFactSafely(screened.sanitizedText, namespace, fact.category);
                 if (saveRes.success && saveRes.blob_id) {
                   await setMemoryMetadata(userId, saveRes.blob_id, {
                     category: fact.category,
@@ -328,7 +328,7 @@ export async function POST(req: Request) {
             const screened = await screenWriteFact(userId, fact.text);
             if (!screened.allowed) continue;
 
-            const saveRes = await rememberFactSafely(screened.sanitizedText, namespace);
+            const saveRes = await rememberFactSafely(screened.sanitizedText, namespace, fact.category);
             if (saveRes.success && saveRes.blob_id) {
               await setMemoryMetadata(userId, saveRes.blob_id, {
                 category: fact.category,
@@ -429,6 +429,7 @@ export async function POST(req: Request) {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Accel-Buffering": "no",
+      "Access-Control-Expose-Headers": "x-recorded-memory, x-recalled-memories",
     };
 
     if (recordedRequestMemory) {

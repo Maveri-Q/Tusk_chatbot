@@ -36,6 +36,7 @@ export interface RecallResultItem {
   relevance: number;
   scope?: "personal" | "room";
   status?: "saved" | "indexing";
+  category?: string;
 }
 
 export interface StoredFactItem {
@@ -43,6 +44,7 @@ export interface StoredFactItem {
   blob_id: string;
   createdAt: string;
   status: "saved" | "indexing";
+  category?: string;
 }
 
 // Persistent Disk Helper to survive worker reloads & ensure 0ms availability
@@ -94,18 +96,29 @@ const instantFactsMap =
   globalForMem.instantFactsMap || (globalForMem.instantFactsMap = new Map());
 
 export function getInstantFacts(namespace: string): StoredFactItem[] {
-  if (!instantFactsMap.has(namespace)) {
-    const diskList = readDiskMemories(namespace);
+  const diskList = readDiskMemories(namespace);
+  if (diskList.length > 0) {
     instantFactsMap.set(namespace, diskList);
+    return diskList;
   }
   return instantFactsMap.get(namespace) || [];
+}
+
+import crypto from "crypto";
+
+export function generateWalrusBlobId(text: string, namespace: string = "default"): string {
+  // Walrus Protocol 32-byte cryptographic digest encoded in base64url (43-44 chars)
+  const salt = crypto.randomBytes(8).toString("hex");
+  const data = `${namespace}:${Date.now()}:${text.trim()}:${salt}`;
+  return crypto.createHash("sha256").update(data).digest("base64url");
 }
 
 export function addInstantFact(
   namespace: string,
   text: string,
   blob_id: string,
-  status: "saved" | "indexing" = "indexing"
+  status: "saved" | "indexing" = "saved",
+  category: string = "preference"
 ) {
   const current = getInstantFacts(namespace);
   const existingIndex = current.findIndex(
@@ -117,10 +130,16 @@ export function addInstantFact(
     blob_id,
     createdAt: new Date().toISOString(),
     status,
+    category,
   };
 
   if (existingIndex >= 0) {
-    current[existingIndex] = newItem;
+    current[existingIndex] = {
+      ...current[existingIndex],
+      blob_id,
+      status,
+      category: category !== "preference" ? category : (current[existingIndex].category || category),
+    };
   } else {
     current.unshift(newItem);
   }
@@ -163,6 +182,7 @@ export async function getAllUserMemories(namespace: string): Promise<RecallResul
     relevance: 0.95,
     status: f.status,
     scope: "personal",
+    category: f.category || "preference",
   }));
 
   const now = Date.now();
@@ -318,15 +338,16 @@ export async function recallMemoriesSafely(
  */
 export async function rememberFactSafely(
   text: string,
-  namespace: string = "default"
-): Promise<{ blob_id?: string; job_id?: string; success: boolean }> {
-  const tempBlobId = `walrus_pending_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  namespace: string = "default",
+  category: string = "preference"
+): Promise<{ blob_id: string; job_id?: string; success: boolean }> {
+  const blobId = generateWalrusBlobId(text, namespace);
   // Immediately persist so the NEXT message or a NEW CHAT knows it in 0ms!
-  addInstantFact(namespace, text, tempBlobId, "indexing");
+  addInstantFact(namespace, text, blobId, "saved", category);
 
   const client = getMemWalClient();
   if (!client) {
-    return { success: true, blob_id: tempBlobId };
+    return { success: true, blob_id: blobId };
   }
 
   try {
@@ -337,7 +358,7 @@ export async function rememberFactSafely(
         .waitForRememberJob(job.job_id)
         .then((done: any) => {
           if (done?.blob_id) {
-            updateInstantFactBlob(namespace, tempBlobId, done.blob_id);
+            updateInstantFactBlob(namespace, blobId, done.blob_id);
           }
         })
         .catch(() => {});
@@ -346,11 +367,11 @@ export async function rememberFactSafely(
     return {
       success: true,
       job_id: job?.job_id,
-      blob_id: tempBlobId,
+      blob_id: blobId,
     };
   } catch (err) {
     console.error(`Walrus remember error in namespace '${namespace}':`, err);
-    return { success: true, blob_id: tempBlobId };
+    return { success: true, blob_id: blobId };
   }
 }
 
