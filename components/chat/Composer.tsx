@@ -3,7 +3,6 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import {
   SendHorizontal,
-  Brain,
   Loader2,
   Paperclip,
   Mic,
@@ -13,7 +12,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 
 export interface ComposerAttachment {
@@ -530,41 +528,6 @@ export function Composer({
               </Tooltip>
             </TooltipProvider>
 
-            {/* Memory ON/OFF Toggle */}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1.5 cursor-pointer select-none ml-1">
-                    <Switch
-                      id="composer-memory-toggle"
-                      checked={memoryEnabled}
-                      onCheckedChange={onToggleMemory}
-                      disabled={isLoading}
-                    />
-                    <label
-                      htmlFor="composer-memory-toggle"
-                      className="text-xs font-medium text-text flex items-center gap-1 cursor-pointer"
-                    >
-                      <Brain
-                        className={`h-3.5 w-3.5 transition-colors ${
-                          memoryEnabled ? "text-lime" : "text-text-muted"
-                        }`}
-                      />
-                      <span className={memoryEnabled ? "text-text text-[11px]" : "text-text-muted text-[11px]"}>
-                        Memory
-                      </span>
-                    </label>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {memoryEnabled
-                      ? "Active: Encrypted Walrus memory enabled across sessions."
-                      : "Disabled: No memories recalled or stored."}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
 
           {/* Send Button */}

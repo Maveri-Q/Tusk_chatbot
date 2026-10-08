@@ -12,7 +12,6 @@ import {
   User,
   Users,
   Settings,
-  Brain,
   MoreHorizontal,
   ChevronUp,
 } from "lucide-react";
@@ -44,8 +43,6 @@ interface SidebarProps {
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onOpenSettings?: () => void;
-  onOpenMemoryLens?: () => void;
-  memoriesCount?: number;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -65,8 +62,6 @@ export function Sidebar({
   onOpenAuth,
   onLogout,
   onOpenSettings,
-  onOpenMemoryLens,
-  memoriesCount = 0,
   isOpenMobile = false,
   onCloseMobile,
 }: SidebarProps) {
@@ -227,25 +222,6 @@ export function Sidebar({
                 </button>
               )}
 
-              {/* Menu Item: Memory Lens / What Tusk Remembers */}
-              {onOpenMemoryLens && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAccountMenuOpen(false);
-                    onOpenMemoryLens();
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-text hover:bg-bg-elev-2 hover:text-text transition-colors text-left"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Brain className="h-4 w-4 text-lime" />
-                    <span className="font-medium">What Tusk Remembers</span>
-                  </div>
-                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-lime/10 text-lime border border-lime/20">
-                    {memoriesCount}
-                  </span>
-                </button>
-              )}
 
               {/* Menu Item: Account & Profile Details */}
               {onOpenAuth && (

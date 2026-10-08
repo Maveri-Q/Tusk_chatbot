@@ -463,11 +463,13 @@ export function AuthModal({
               </div>
             )}
 
-            {/* 1. Continue with Google Button (opens authentic account chooser) */}
+            {/* 1. Continue with Google Button (redirects to Google account chooser outside chatbot) */}
             <div className="flex flex-col gap-3">
               <button
                 type="button"
-                onClick={() => setView("google-chooser")}
+                onClick={() => {
+                  window.location.href = "/auth/google";
+                }}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-border bg-bg-elev-2 hover:bg-bg hover:border-lime/40 transition-all shadow-xs text-xs font-semibold text-text group"
               >
                 <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">

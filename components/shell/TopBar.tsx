@@ -1,18 +1,14 @@
 "use client";
 
 import React from "react";
-import { Brain, PanelRight, User, Menu, LogIn, Settings } from "lucide-react";
+import { User, Menu, LogIn, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TuskSymbol } from "@/components/brand/TuskSymbol";
 
 interface TopBarProps {
-  onTogglePanel: () => void;
   onToggleSidebar: () => void;
-  isPanelOpen: boolean;
-  memoriesCount?: number;
   advancedTools: boolean;
-  onToggleAdvancedTools?: () => void;
   relayerStatus?: "ok" | "degraded" | "down";
   userDisplayName?: string;
   isLoggedIn?: boolean;
@@ -21,12 +17,8 @@ interface TopBarProps {
 }
 
 export function TopBar({
-  onTogglePanel,
   onToggleSidebar,
-  isPanelOpen,
-  memoriesCount,
   advancedTools,
-  onToggleAdvancedTools,
   relayerStatus = "ok",
   userDisplayName = "Explorer",
   isLoggedIn = false,
@@ -53,7 +45,7 @@ export function TopBar({
           </span>
           <span className="text-xs text-text-muted hidden sm:inline">•</span>
           <span className="text-xs text-text-muted hidden sm:inline">
-            Long-term memory active
+            Encrypted Walrus memory
           </span>
         </div>
       </div>
@@ -77,22 +69,10 @@ export function TopBar({
               </>
             ) : (
               <>
-                <LogIn className="h-3 w-3" />
+                <LogIn className="h-3.5 w-3.5" />
                 <span className="font-medium text-[11px]">Sign In</span>
               </>
             )}
-          </button>
-        )}
-
-        {/* Settings Icon Button */}
-        {onOpenSettings && (
-          <button
-            onClick={onOpenSettings}
-            className="p-1.5 rounded-lg border border-transparent text-text-muted hover:text-text hover:bg-bg-elev-2 transition-colors"
-            title="Settings (Personalization, Memory, Security)"
-            aria-label="Settings"
-          >
-            <Settings className="h-4 w-4" />
           </button>
         )}
 
@@ -114,27 +94,17 @@ export function TopBar({
           </div>
         )}
 
-        {/* Memory Lens Panel Toggle: Always visible and accessible */}
-        <Button
-          variant={isPanelOpen ? "secondary" : "ghost"}
-          size="sm"
-          onClick={onTogglePanel}
-          className={`gap-2 text-xs h-8 border transition-all ${
-            isPanelOpen
-              ? "bg-[#167A55]/15 border-[#167A55]/40 text-[#167A55] font-semibold"
-              : "border-border hover:border-[#167A55]/50 hover:bg-bg-elev-2 text-text"
-          }`}
-          aria-label="Toggle memory lens panel"
-        >
-          <Brain className="h-3.5 w-3.5 text-[#167A55]" />
-          <span className="hidden sm:inline">Memory Lens</span>
-          {typeof memoriesCount === "number" && (
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#167A55]/15 text-[#167A55] font-medium border border-[#167A55]/20">
-              {memoriesCount}
-            </span>
-          )}
-          <PanelRight className="h-3.5 w-3.5 text-text-muted" />
-        </Button>
+        {/* Settings Icon Button */}
+        {onOpenSettings && (
+          <button
+            onClick={onOpenSettings}
+            className="p-1.5 rounded-lg border border-transparent text-text-muted hover:text-text hover:bg-bg-elev-2 transition-colors"
+            title="Settings (Personalization, Memory, Theme, Security)"
+            aria-label="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        )}
       </div>
     </header>
   );

@@ -37,6 +37,37 @@
   --radius-sm: 12px;
 }
 
+.dark {
+  /* Sleek modern dark foundation */
+  --bg: #131416;
+  --bg-elev: #1A1D21;
+  --bg-elev-2: #24272D;
+
+  /* Typography */
+  --text: #ECECEC;
+  --text-muted: #8F959E;
+
+  /* Restrained Emerald & Mint Accent Family */
+  --emerald-soft: #42C98A;
+  --mint-light: #8DE8BF;
+  --emerald-deep: #167A55;
+  --mint-pale: #1A382B;
+
+  /* Semantic fallbacks */
+  --flare: #ECECEC;
+  --on-flare: #131416;
+  --lime: #42C98A;
+  --on-lime: #131416;
+
+  /* Borders & Separation */
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Status */
+  --warn: #F59E0B;
+  --danger: #EF4444;
+}
+
 body {
   background-color: var(--bg);
   color: var(--text);

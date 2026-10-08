@@ -3,12 +3,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { TopBar } from "@/components/shell/TopBar";
 import { Sidebar, ChatSession } from "@/components/shell/Sidebar";
-import { MemoryLens, MemoryItem } from "@/components/lens/MemoryLens";
 import { ChatView } from "@/components/chat/ChatView";
 import { ChatMessage, RecalledMemory } from "@/components/chat/MessageBubble";
 import { ComposerAttachment } from "@/components/chat/Composer";
 import { AuthModal, UserProfile } from "@/components/auth/AuthModal";
-import { SettingsModal } from "@/components/settings/SettingsModal";
+import { SettingsModal, MemoryItem } from "@/components/settings/SettingsModal";
 
 interface StoredSession extends ChatSession {
   messages: ChatMessage[];
@@ -22,8 +21,6 @@ const GUEST_USER: UserProfile = {
 };
 
 export default function ChatPage() {
-  // Memory Lens panel closed/hidden by default as requested
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [advancedTools, setAdvancedTools] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
@@ -81,6 +78,32 @@ export default function ChatPage() {
   const handleRefreshMemories = useCallback(() => {
     loadMemories(currentUser.id);
   }, [loadMemories, currentUser.id]);
+
+  // Delete a specific memory fact from Walrus store
+  const handleDeleteMemory = useCallback(async (blobId: string) => {
+    try {
+      const res = await fetch("/api/memories/forget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blobId, userId: currentUser.id }),
+      });
+      if (res.ok) {
+        setMemories((prev) => prev.filter((m) => m.blob_id !== blobId));
+        try {
+          const cached = localStorage.getItem(`tusk_memories_${currentUser.id}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              const filtered = parsed.filter((m: any) => m.blob_id !== blobId);
+              localStorage.setItem(`tusk_memories_${currentUser.id}`, JSON.stringify(filtered));
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      console.error("Failed to delete memory:", e);
+    }
+  }, [currentUser.id]);
 
   // Fetch relayer health
   const checkHealth = useCallback(async () => {
@@ -172,16 +195,47 @@ export default function ChatPage() {
   // Mount effect: load user, sessions, memories, and health
   useEffect(() => {
     let activeUid = "guest";
+
+    // 1. Check if redirected from Google Auth
     try {
-      const storedUser = localStorage.getItem("tusk_active_user");
-      if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        if (parsed?.id) {
-          setCurrentUser(parsed);
-          activeUid = parsed.id;
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("google_auth") === "success") {
+          const authEmail = urlParams.get("email");
+          const authName = urlParams.get("name");
+          if (authEmail) {
+            const username = authEmail.split("@")[0];
+            const id = username.toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 32);
+            const authedUser: UserProfile = {
+              id,
+              name: authName || username,
+              email: authEmail,
+              provider: "google",
+            };
+            localStorage.setItem("tusk_active_user", JSON.stringify(authedUser));
+            setCurrentUser(authedUser);
+            activeUid = authedUser.id;
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
         }
       }
+    } catch (_) {}
 
+    // 2. Fallback to existing active user in localStorage if not redirected
+    if (activeUid === "guest") {
+      try {
+        const storedUser = localStorage.getItem("tusk_active_user");
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          if (parsed?.id) {
+            setCurrentUser(parsed);
+            activeUid = parsed.id;
+          }
+        }
+      } catch (e) {}
+    }
+
+    try {
       const storedTools = localStorage.getItem("tusk_advanced_tools");
       if (storedTools !== null) {
         setAdvancedTools(storedTools === "true");
@@ -603,12 +657,9 @@ export default function ChatPage() {
         onClose={() => setIsSettingsModalOpen(false)}
         memoryEnabled={memoryEnabled}
         onToggleMemory={setMemoryEnabled}
-        memoriesCount={memories.length}
-        onOpenMemoryLens={() => {
-          setIsSettingsModalOpen(false);
-          setIsPanelOpen(true);
-          loadMemories(currentUser.id);
-        }}
+        memories={memories}
+        onDeleteMemory={handleDeleteMemory}
+        onRefreshMemories={handleRefreshMemories}
         advancedTools={advancedTools}
         onToggleAdvancedTools={handleToggleAdvancedTools}
         relayerStatus={relayerStatus}
@@ -638,11 +689,6 @@ export default function ChatPage() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
-        onOpenMemoryLens={() => {
-          setIsPanelOpen(true);
-          loadMemories(currentUser.id);
-        }}
-        memoriesCount={memories.length}
         isOpenMobile={isSidebarMobileOpen}
         onCloseMobile={() => setIsSidebarMobileOpen(false)}
       />
@@ -650,18 +696,8 @@ export default function ChatPage() {
       {/* Main Column */}
       <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
         <TopBar
-          isPanelOpen={isPanelOpen}
-          memoriesCount={memories.length}
-          onTogglePanel={() => {
-            const next = !isPanelOpen;
-            setIsPanelOpen(next);
-            if (next) {
-              loadMemories(currentUser.id);
-            }
-          }}
           onToggleSidebar={() => setIsSidebarMobileOpen(!isSidebarMobileOpen)}
           advancedTools={advancedTools}
-          onToggleAdvancedTools={() => handleToggleAdvancedTools(!advancedTools)}
           relayerStatus={relayerStatus}
           userDisplayName={isLoggedIn ? currentUser.name : "Sign In"}
           isLoggedIn={isLoggedIn}
@@ -670,7 +706,7 @@ export default function ChatPage() {
         />
 
         <div className="flex-1 flex overflow-hidden">
-          {/* Center Chat View: Memory badges visible */}
+          {/* Center Chat View */}
           <ChatView
             messages={messages}
             input={input}
@@ -682,16 +718,6 @@ export default function ChatPage() {
             userDisplayName={isLoggedIn ? currentUser.name : "Explorer"}
             showMemoryBadges={true}
             onEditMessage={handleEditMessage}
-          />
-
-          {/* Memory Lens Right Panel: Hidden by default */}
-          <MemoryLens
-            isOpen={isPanelOpen}
-            onClose={() => setIsPanelOpen(false)}
-            advancedTools={advancedTools}
-            memories={memories}
-            onRefreshMemories={handleRefreshMemories}
-            userId={currentUser.id}
           />
         </div>
       </div>

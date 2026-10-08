@@ -36,8 +36,33 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} dark`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const stored = localStorage.getItem('tusk_theme') || 'dark';
+                  if (stored === 'light') {
+                    document.documentElement.classList.remove('dark');
+                  } else if (stored === 'dark') {
+                    document.documentElement.classList.add('dark');
+                  } else if (stored === 'system') {
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                      document.documentElement.classList.add('dark');
+                    } else {
+                      document.documentElement.classList.remove('dark');
+                    }
+                  }
+                } catch (_) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="font-sans antialiased bg-bg text-text min-h-screen">
         {children}
       </body>
