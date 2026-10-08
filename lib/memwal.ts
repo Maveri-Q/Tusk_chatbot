@@ -272,6 +272,20 @@ export async function recallMemoriesSafely(
       trimmedQuery.includes("earlier") ||
       trimmedQuery.includes("previous") ||
       trimmedQuery.includes("chat") ||
+      trimmedQuery.includes("talk") ||
+      trimmedQuery.includes("discuss") ||
+      trimmedQuery.includes("tell") ||
+      trimmedQuery.includes("told") ||
+      trimmedQuery.includes("said") ||
+      trimmedQuery.includes("say") ||
+      trimmedQuery.includes("last") ||
+      trimmedQuery.includes("past") ||
+      trimmedQuery.includes("before") ||
+      trimmedQuery.includes("convo") ||
+      trimmedQuery.includes("conversation") ||
+      trimmedQuery.includes("project") ||
+      trimmedQuery.includes("goal") ||
+      trimmedQuery.includes("name") ||
       trimmedQuery.includes("travel") ||
       trimmedQuery.includes("time") ||
       trimmedQuery.includes("tomorrow");

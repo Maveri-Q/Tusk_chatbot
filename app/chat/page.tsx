@@ -76,6 +76,10 @@ export default function ChatPage() {
     }
   }, [currentUser.id]);
 
+  const handleRefreshMemories = useCallback(() => {
+    loadMemories(currentUser.id);
+  }, [loadMemories, currentUser.id]);
+
   // Fetch relayer health
   const checkHealth = useCallback(async () => {
     try {
@@ -234,6 +238,7 @@ export default function ChatPage() {
     setActiveSessionId(newSession.id);
     setMessages([]);
     setInput("");
+    loadMemories(currentUser.id);
   };
 
   // Switch to an existing session
@@ -243,6 +248,7 @@ export default function ChatPage() {
       setActiveSessionId(sessionId);
       setMessages(found.messages || []);
       setInput("");
+      loadMemories(currentUser.id);
       if (isSidebarMobileOpen) setIsSidebarMobileOpen(false);
     }
   };
@@ -368,25 +374,7 @@ export default function ChatPage() {
         }
       }
 
-      // Parse newly recorded user request memory so Memory Lens updates immediately!
-      const recHeader = response.headers.get("x-recorded-memory");
-      if (recHeader) {
-        try {
-          const recMem = JSON.parse(decodeURIComponent(recHeader));
-          if (recMem?.blob_id) {
-            setMemories((prev) => {
-              const filtered = prev.filter(
-                (m) =>
-                  m.blob_id !== recMem.blob_id &&
-                  m.text.toLowerCase().trim() !== recMem.text.toLowerCase().trim()
-              );
-              return [recMem, ...filtered];
-            });
-          }
-        } catch (e) {
-          console.error("Failed to parse recorded memory header:", e);
-        }
-      }
+
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -460,7 +448,7 @@ export default function ChatPage() {
               const extData = await extRes.json();
               console.log("[Extraction Client] Extraction response received:", extData);
               if (Array.isArray(extData.newMemories) && extData.newMemories.length > 0) {
-                // Update panel's list right after saving so a manual refresh isn't needed
+                // Update panel's list cleanly right after saving
                 setMemories((prev) => {
                   const newBlobIds = new Set(extData.newMemories.map((m: any) => m.blob_id));
                   const remaining = prev.filter((m) => !newBlobIds.has(m.blob_id));
@@ -474,17 +462,9 @@ export default function ChatPage() {
             }
           } catch (extErr) {
             console.error("[Extraction Client Error] Extraction call failed:", extErr);
-          } finally {
-            loadMemories(currentUser.id);
           }
         })();
       }
-
-      // Refresh memories list
-      loadMemories(currentUser.id);
-      setTimeout(() => {
-        loadMemories(currentUser.id);
-      }, 1200);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
       const errorMsgText = `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`;
@@ -646,7 +626,7 @@ export default function ChatPage() {
             onClose={() => setIsPanelOpen(false)}
             advancedTools={advancedTools}
             memories={memories}
-            onRefreshMemories={() => loadMemories(currentUser.id)}
+            onRefreshMemories={handleRefreshMemories}
             userId={currentUser.id}
           />
         </div>

@@ -193,6 +193,24 @@ export async function POST(req: Request) {
           });
         }
       }
+
+      // Prioritize high-value facts (identity, project, goal, preference) over generic items
+      usableMemories.sort((a, b) => {
+        const catOrder: Record<string, number> = {
+          identity: 1,
+          project: 2,
+          goal: 3,
+          employment: 4,
+          preference: 5,
+        };
+        const aVal = catOrder[a.category || ""] || 10;
+        const bVal = catOrder[b.category || ""] || 10;
+        return aVal - bVal;
+      });
+
+      if (usableMemories.length > 25) {
+        usableMemories = usableMemories.slice(0, 25);
+      }
     }
 
     // 3. Construct System Prompt with packaged memory context & true user identity
@@ -259,59 +277,7 @@ export async function POST(req: Request) {
     // 5. Get model cascade
     const candidateModels = getModelCascade(modelId);
 
-    // 6. Record Every User Request in Walrus Memory with its own Blob ID + Extract Granular Facts
-    let recordedRequestMemory: any = null;
-
-    if (memoryEnabled && lastUserMsg.trim()) {
-      // 6a. Record the user request itself directly into Walrus Memory (guarantees every request has its own blob ID)
-      try {
-        const screened = await screenWriteFact(userId, lastUserMsg.trim());
-        if (screened.allowed) {
-          const reqSave = await rememberFactSafely(screened.sanitizedText, namespace, "request");
-          if (reqSave.success && reqSave.blob_id) {
-            await setMemoryMetadata(userId, reqSave.blob_id, {
-              category: "request",
-              createdAt: new Date().toISOString(),
-              scope: "personal",
-              jobId: reqSave.job_id,
-            });
-
-            recordedRequestMemory = {
-              blob_id: reqSave.blob_id,
-              text: screened.sanitizedText,
-              category: "request",
-              createdAt: new Date().toLocaleDateString(),
-              relevance: 1.0,
-              status: "saved",
-            };
-          }
-        }
-      } catch (err) {
-        console.error("Error recording user request to Walrus:", err);
-      }
-
-      // 6b. Fast-Path (0ms): Instant rule-based facts saved immediately to disk & Walrus
-      try {
-        const immediateFacts = extractFastFacts(lastUserMsg);
-        for (const fact of immediateFacts) {
-          if (fact.text.toLowerCase().trim() === lastUserMsg.toLowerCase().trim()) continue;
-          const screened = await screenWriteFact(userId, fact.text);
-          if (screened.allowed) {
-            const saveRes = await rememberFactSafely(screened.sanitizedText, namespace, fact.category);
-            if (saveRes.success && saveRes.blob_id) {
-              await setMemoryMetadata(userId, saveRes.blob_id, {
-                category: fact.category,
-                createdAt: new Date().toISOString(),
-                scope: "personal",
-                jobId: saveRes.job_id,
-              });
-            }
-          }
-        }
-      } catch (_) {}
-    }
-
-    // 7. Multi-model resilient streaming engine with zero-token auto-recovery
+    // 6. Multi-model resilient streaming engine with zero-token auto-recovery
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -396,12 +362,8 @@ export async function POST(req: Request) {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       "X-Accel-Buffering": "no",
-      "Access-Control-Expose-Headers": "x-recorded-memory, x-recalled-memories",
+      "Access-Control-Expose-Headers": "x-recalled-memories",
     };
-
-    if (recordedRequestMemory) {
-      headers["x-recorded-memory"] = encodeURIComponent(JSON.stringify(recordedRequestMemory));
-    }
 
     if (usableMemories.length > 0) {
       const metadataPayload = usableMemories.slice(0, 5).map((m) => ({

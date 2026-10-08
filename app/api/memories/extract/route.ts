@@ -75,13 +75,14 @@ export async function POST(req: NextRequest) {
       const modelId = normalizeModelId(process.env.TUSK_MODEL_ID);
 
       const prompt = `You are an AI memory extraction system for Tusk chatbot.
-Analyze the user's message and extract any durable, permanent facts they share about themselves (such as name, identity, preferences, projects, goals, location, employment, or background).
+Analyze the user's message and extract durable, permanent facts they share about themselves (such as name, identity, preferences, technical stack, projects, apps, goals, requests, location, employment, or background).
 
 Rules:
 1. Return ONLY a valid JSON array of concise third-person declarative statements (e.g. ["The user's name is Alex", "The user prefers dark mode", "The user is building a Web3 payment app", "The user lives in Oslo"]).
-2. If the user did NOT share any durable facts (e.g. simple questions, greetings, temporary remarks, code requests, general chat), return exactly [].
-3. NEVER extract passwords, API keys, access tokens, secrets, or credit card numbers.
-4. Do NOT output any explanations, markdown headers, or text outside the JSON array.
+2. If the user shares a project, system, application, or request to build something, capture it as a durable project or goal fact.
+3. If the user did NOT share any durable facts (e.g. simple questions like "What did I tell you?", "Who are you?", temporary remarks, greetings, conversational filler), return exactly [].
+4. NEVER extract passwords, API keys, access tokens, secrets, or credit card numbers.
+5. Do NOT output any explanations, markdown headers, or text outside the JSON array.
 
 User message:
 """
@@ -174,11 +175,7 @@ ${messageText}
       const normFact = normalizeForComparison(fact);
       const isDuplicate = existingItems.some((existing) => {
         const normExisting = normalizeForComparison(existing.text);
-        return (
-          normExisting === normFact ||
-          normExisting.includes(normFact) ||
-          normFact.includes(normExisting)
-        );
+        return normExisting === normFact;
       });
 
       if (isDuplicate) {
@@ -196,13 +193,39 @@ ${messageText}
     for (const factText of newUniqueFacts) {
       const lower = factText.toLowerCase();
       let category = "preference";
-      if (lower.includes("name is") || lower.includes("called") || lower.includes("lives in") || lower.includes("located in")) {
+      if (
+        lower.includes("name is") ||
+        lower.includes("called") ||
+        lower.includes("lives in") ||
+        lower.includes("located in") ||
+        lower.includes("based in")
+      ) {
         category = "identity";
-      } else if (lower.includes("building") || lower.includes("project") || lower.includes("app") || lower.includes("developing")) {
+      } else if (
+        lower.includes("building") ||
+        lower.includes("project") ||
+        lower.includes("app") ||
+        lower.includes("developing") ||
+        lower.includes("website") ||
+        lower.includes("system")
+      ) {
         category = "project";
-      } else if (lower.includes("goal") || lower.includes("plans to") || lower.includes("wants to") || lower.includes("aims to")) {
+      } else if (
+        lower.includes("goal") ||
+        lower.includes("plans to") ||
+        lower.includes("wants to") ||
+        lower.includes("aims to") ||
+        lower.includes("requested")
+      ) {
         category = "goal";
-      } else if (lower.includes("works at") || lower.includes("works as") || lower.includes("employed")) {
+      } else if (
+        lower.includes("works at") ||
+        lower.includes("works as") ||
+        lower.includes("employed") ||
+        lower.includes("developer") ||
+        lower.includes("engineer") ||
+        lower.includes("student")
+      ) {
         category = "employment";
       }
 

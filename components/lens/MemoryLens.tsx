@@ -66,16 +66,12 @@ export function MemoryLens({
   const [isAttacking, setIsAttacking] = useState(false);
   const [attackSuccessMessage, setAttackSuccessMessage] = useState<string | null>(null);
 
-  // Auto-refresh memories as soon as panel opens and periodically every 4s
+  // Refresh memories once when panel opens
   useEffect(() => {
     if (isOpen && onRefreshMemories) {
       onRefreshMemories();
-      const interval = setInterval(() => {
-        onRefreshMemories();
-      }, 4000);
-      return () => clearInterval(interval);
     }
-  }, [isOpen, onRefreshMemories]);
+  }, [isOpen]);
 
   // Fetch security logs when advanced tools is enabled
   const fetchSecLogs = async () => {
