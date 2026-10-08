@@ -17,6 +17,7 @@ interface TopBarProps {
   userDisplayName?: string;
   isLoggedIn?: boolean;
   onOpenAuth?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function TopBar({
@@ -30,6 +31,7 @@ export function TopBar({
   userDisplayName = "Explorer",
   isLoggedIn = false,
   onOpenAuth,
+  onOpenSettings,
 }: TopBarProps) {
   return (
     <header className="h-14 glass-panel border-b border-border px-4 flex items-center justify-between z-20 sticky top-0 bg-bg/90 backdrop-blur-md">
@@ -82,16 +84,12 @@ export function TopBar({
           </button>
         )}
 
-        {/* Small Discreet Settings Icon Button */}
-        {onToggleAdvancedTools && (
+        {/* Settings Icon Button */}
+        {onOpenSettings && (
           <button
-            onClick={onToggleAdvancedTools}
-            className={`p-1.5 rounded-lg border transition-colors ${
-              advancedTools
-                ? "border-[#167A55]/40 bg-[#C8F5DE]/30 text-[#167A55]"
-                : "border-transparent text-text-muted hover:text-text hover:bg-bg-elev-2"
-            }`}
-            title={advancedTools ? "Developer & Memory inspection active (Click to hide)" : "Settings"}
+            onClick={onOpenSettings}
+            className="p-1.5 rounded-lg border border-transparent text-text-muted hover:text-text hover:bg-bg-elev-2 transition-colors"
+            title="Settings (Personalization, Memory, Security)"
             aria-label="Settings"
           >
             <Settings className="h-4 w-4" />

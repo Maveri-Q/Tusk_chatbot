@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Plus,
   MessageSquare,
@@ -11,6 +11,10 @@ import {
   Shield,
   User,
   Users,
+  Settings,
+  Brain,
+  MoreHorizontal,
+  ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -39,6 +43,9 @@ interface SidebarProps {
   isLoggedIn?: boolean;
   onOpenAuth?: () => void;
   onLogout?: () => void;
+  onOpenSettings?: () => void;
+  onOpenMemoryLens?: () => void;
+  memoriesCount?: number;
   isOpenMobile?: boolean;
   onCloseMobile?: () => void;
 }
@@ -57,9 +64,33 @@ export function Sidebar({
   isLoggedIn = false,
   onOpenAuth,
   onLogout,
+  onOpenSettings,
+  onOpenMemoryLens,
+  memoriesCount = 0,
   isOpenMobile = false,
   onCloseMobile,
 }: SidebarProps) {
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close account menu on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsAccountMenuOpen(false);
+      }
+    }
+    if (isAccountMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isAccountMenuOpen]);
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -159,52 +190,141 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Bottom: Clean User Account Section */}
-        <div className="p-4 border-t border-border bg-bg-elev shrink-0">
-          <div className="p-2.5 rounded-xl bg-bg-elev-2 border border-border flex items-center justify-between">
-            {isLoggedIn ? (
-              <>
-                <div
-                  onClick={onOpenAuth}
-                  className="flex items-center gap-2.5 min-w-0 cursor-pointer flex-1 group"
-                >
-                  <Avatar className="h-8 w-8 bg-[#167A55]/15 border border-[#167A55]/30">
-                    <AvatarFallback className="text-[#167A55] font-semibold text-xs">
-                      {userDisplayName.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-semibold text-text truncate group-hover:text-[#167A55] transition-colors">
-                      {userDisplayName}
-                    </span>
-                    <span className="text-[10px] text-text-muted font-mono truncate">
-                      {userEmail || userNamespace}
-                    </span>
-                  </div>
+        {/* Bottom: ChatGPT-Style Account & Settings Section */}
+        <div className="p-3 border-t border-border bg-bg-elev shrink-0 relative" ref={accountMenuRef}>
+          {/* Popover Menu (ChatGPT style) */}
+          {isAccountMenuOpen && (
+            <div className="absolute bottom-[calc(100%+8px)] left-3 right-3 z-50 rounded-2xl bg-bg-elev border border-border shadow-2xl p-1.5 flex flex-col gap-0.5 animate-in fade-in-0 zoom-in-95 duration-150">
+              {/* Profile Card Header */}
+              <div className="px-3 py-2.5 rounded-xl bg-bg-elev-2/70 border border-border/50 flex items-center gap-2.5 mb-1">
+                <Avatar className="h-8 w-8 bg-lime/10 border border-lime/25 shrink-0">
+                  <AvatarFallback className="text-lime font-bold text-xs">
+                    {isLoggedIn ? userDisplayName.slice(0, 2).toUpperCase() : "G"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-semibold text-text truncate">
+                    {isLoggedIn ? userDisplayName : "Guest User"}
+                  </span>
+                  <span className="text-[10px] text-text-muted truncate font-mono">
+                    {isLoggedIn ? (userEmail || userNamespace) : "Walrus guest mode"}
+                  </span>
                 </div>
+              </div>
 
-                <div className="flex items-center gap-1 shrink-0">
-                  {onLogout && (
-                    <button
-                      onClick={onLogout}
-                      className="p-1.5 rounded-md text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                      title="Sign out"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </>
-            ) : (
-              <button
-                onClick={onOpenAuth}
-                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-[#17191C] hover:bg-[#167A55] text-white text-xs font-medium transition-all shadow-xs"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Sign In (Google / Email)</span>
-              </button>
-            )}
-          </div>
+              {/* Menu Item: Settings */}
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAccountMenuOpen(false);
+                    onOpenSettings();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-text hover:bg-bg-elev-2 hover:text-text transition-colors text-left"
+                >
+                  <Settings className="h-4 w-4 text-text-muted" />
+                  <span className="flex-1 font-medium">Settings</span>
+                </button>
+              )}
+
+              {/* Menu Item: Memory Lens / What Tusk Remembers */}
+              {onOpenMemoryLens && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAccountMenuOpen(false);
+                    onOpenMemoryLens();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-text hover:bg-bg-elev-2 hover:text-text transition-colors text-left"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Brain className="h-4 w-4 text-lime" />
+                    <span className="font-medium">What Tusk Remembers</span>
+                  </div>
+                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-lime/10 text-lime border border-lime/20">
+                    {memoriesCount}
+                  </span>
+                </button>
+              )}
+
+              {/* Menu Item: Account & Profile Details */}
+              {onOpenAuth && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAccountMenuOpen(false);
+                    onOpenAuth();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-text hover:bg-bg-elev-2 hover:text-text transition-colors text-left"
+                >
+                  <User className="h-4 w-4 text-text-muted" />
+                  <span className="flex-1 font-medium">Account & Profile</span>
+                </button>
+              )}
+
+              <div className="h-px bg-border/60 my-1" />
+
+              {/* Menu Item: Log Out / Sign In */}
+              {isLoggedIn ? (
+                onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-danger hover:bg-danger/10 transition-colors text-left font-medium"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Log out</span>
+                  </button>
+                )
+              ) : (
+                onOpenAuth && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAccountMenuOpen(false);
+                      onOpenAuth();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-lime hover:bg-lime/10 transition-colors text-left font-medium"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>Sign in with Google / Email</span>
+                  </button>
+                )
+              )}
+            </div>
+          )}
+
+          {/* Trigger Button (ChatGPT style profile card at bottom) */}
+          <button
+            type="button"
+            onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
+            className={`w-full p-2 rounded-xl flex items-center justify-between transition-all border ${
+              isAccountMenuOpen
+                ? "bg-bg-elev-2 border-border shadow-xs"
+                : "bg-bg-elev hover:bg-bg-elev-2 border-transparent hover:border-border"
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0 text-left">
+              <Avatar className="h-8 w-8 bg-lime/10 border border-lime/20 shrink-0">
+                <AvatarFallback className="text-lime font-bold text-xs">
+                  {isLoggedIn ? userDisplayName.slice(0, 2).toUpperCase() : "G"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-semibold text-text truncate">
+                  {isLoggedIn ? userDisplayName : "Guest User"}
+                </span>
+                <span className="text-[10px] text-text-muted font-mono truncate">
+                  {isLoggedIn ? (userEmail || userNamespace) : "Click for Settings & Account"}
+                </span>
+              </div>
+            </div>
+
+            <MoreHorizontal className="h-4 w-4 text-text-muted shrink-0 ml-1.5" />
+          </button>
         </div>
       </aside>
     </>

@@ -8,6 +8,7 @@ import { ChatView } from "@/components/chat/ChatView";
 import { ChatMessage, RecalledMemory } from "@/components/chat/MessageBubble";
 import { ComposerAttachment } from "@/components/chat/Composer";
 import { AuthModal, UserProfile } from "@/components/auth/AuthModal";
+import { SettingsModal } from "@/components/settings/SettingsModal";
 
 interface StoredSession extends ChatSession {
   messages: ChatMessage[];
@@ -27,6 +28,7 @@ export default function ChatPage() {
   const [advancedTools, setAdvancedTools] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [relayerStatus, setRelayerStatus] = useState<"ok" | "degraded" | "down">("ok");
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // User Profile & Authentication State (Defaults to Guest or loaded active user)
   const [currentUser, setCurrentUser] = useState<UserProfile>(GUEST_USER);
@@ -274,6 +276,21 @@ export default function ChatPage() {
         setMessages(updated[0].messages || []);
       }
     }
+  };
+
+  // Clear all sessions for this account (ChatGPT style)
+  const handleClearAllChats = () => {
+    const fresh: StoredSession = {
+      id: `sess_${Date.now()}`,
+      title: "New Conversation",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messages: [],
+    };
+    persistSessions([fresh]);
+    setActiveSessionId(fresh.id);
+    setMessages([]);
+    setInput("");
   };
 
   // Stream assistant response for a given message sequence
@@ -580,7 +597,32 @@ export default function ChatPage() {
         onLogout={handleLogout}
       />
 
-      {/* Sidebar with Persistent Sessions and Account Controls */}
+      {/* ChatGPT-Style Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        memoryEnabled={memoryEnabled}
+        onToggleMemory={setMemoryEnabled}
+        memoriesCount={memories.length}
+        onOpenMemoryLens={() => {
+          setIsSettingsModalOpen(false);
+          setIsPanelOpen(true);
+          loadMemories(currentUser.id);
+        }}
+        advancedTools={advancedTools}
+        onToggleAdvancedTools={handleToggleAdvancedTools}
+        relayerStatus={relayerStatus}
+        currentUser={currentUser}
+        isLoggedIn={isLoggedIn}
+        onOpenAuth={() => {
+          setIsSettingsModalOpen(false);
+          setIsAuthModalOpen(true);
+        }}
+        onLogout={handleLogout}
+        onClearAllChats={handleClearAllChats}
+      />
+
+      {/* Sidebar with Persistent Sessions and ChatGPT-Style Account Controls */}
       <Sidebar
         onNewChat={handleNewChat}
         sessions={sessions}
@@ -595,6 +637,12 @@ export default function ChatPage() {
         isLoggedIn={isLoggedIn}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenMemoryLens={() => {
+          setIsPanelOpen(true);
+          loadMemories(currentUser.id);
+        }}
+        memoriesCount={memories.length}
         isOpenMobile={isSidebarMobileOpen}
         onCloseMobile={() => setIsSidebarMobileOpen(false)}
       />
@@ -618,6 +666,7 @@ export default function ChatPage() {
           userDisplayName={isLoggedIn ? currentUser.name : "Sign In"}
           isLoggedIn={isLoggedIn}
           onOpenAuth={() => setIsAuthModalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
