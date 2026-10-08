@@ -12,6 +12,7 @@ import { isForgotten, setMemoryMetadata } from "@/lib/redis";
 import { screenReadMemory, screenWriteFact } from "@/lib/firewall";
 import { extractDurableFacts, extractFastFacts } from "@/lib/extract";
 import { buildSystemPrompt } from "@/lib/prompts";
+import { getUserStoredSessions } from "../sessions/route";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -96,6 +97,8 @@ export async function POST(req: Request) {
   try {
     const {
       messages,
+      otherSessions = [],
+      activeSessionId = "",
       memoryEnabled = true,
       userId = "guest",
       userName = "Guest",
@@ -213,7 +216,28 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Construct System Prompt with packaged memory context & true user identity
+    // 3. Synchronize cross-chat histories for this account
+    let crossChatSessions = Array.isArray(otherSessions) && otherSessions.length > 0 ? otherSessions : [];
+    if (crossChatSessions.length === 0) {
+      try {
+        const stored = await getUserStoredSessions(userId);
+        if (Array.isArray(stored) && stored.length > 0) {
+          crossChatSessions = stored
+            .filter((s: any) => s.id !== activeSessionId && Array.isArray(s.messages) && s.messages.length > 0)
+            .map((s: any) => ({
+              id: s.id,
+              title: s.title,
+              updatedAt: s.updatedAt,
+              messages: s.messages.slice(-8).map((m: any) => ({
+                role: m.role,
+                content: typeof m.content === "string" ? m.content : "",
+              })),
+            }));
+        }
+      } catch (_) {}
+    }
+
+    // 4. Construct System Prompt with packaged memory context, user identity & other chat histories
     const systemPrompt = buildSystemPrompt(
       usableMemories.map((m) => ({ text: m.text, scope: m.scope })),
       {
@@ -221,7 +245,8 @@ export async function POST(req: Request) {
         userName,
         userEmail,
         isLoggedIn: Boolean(isLoggedIn && userId !== "guest"),
-      }
+      },
+      crossChatSessions
     );
 
     // 4. Transform messages to support multimodal content (images & documents)

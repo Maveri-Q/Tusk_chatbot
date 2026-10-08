@@ -103,8 +103,8 @@ export default function ChatPage() {
       console.error("Failed to save sessions to localStorage:", e);
     }
 
-    // Sync to server for cross-device persistence
-    if (userId && userId !== "guest") {
+    // Sync to server for cross-device and cross-chat memory persistence
+    if (userId) {
       fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -299,12 +299,27 @@ export default function ChatPage() {
     }
 
     try {
+      // Prepare previous/other chat sessions of this account to sync cross-chat memory
+      const otherSessions = sessions
+        .filter((s) => s.id !== activeSessionId && Array.isArray(s.messages) && s.messages.length > 0)
+        .map((s) => ({
+          id: s.id,
+          title: s.title,
+          updatedAt: s.updatedAt,
+          messages: s.messages.slice(-8).map((m) => ({
+            role: m.role,
+            content: typeof m.content === "string" ? m.content : "",
+          })),
+        }));
+
       const requestPayload = {
         messages: currentMsgs.map((m) => ({
           role: m.role,
           content: m.content,
           attachments: m.attachments,
         })),
+        otherSessions,
+        activeSessionId,
         memoryEnabled,
         userId: currentUser.id,
         userName: currentUser.name,
