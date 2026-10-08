@@ -26,17 +26,27 @@ export type ExtractedFact = z.infer<typeof FactItemSchema>;
 
 function normalizeModelId(requested?: string): string {
   if (!requested) return "gemini-flash-lite-latest";
-  const lower = requested.toLowerCase().trim();
+  const cleaned = requested.replace(/^["']|["']$/g, "").trim();
+  const lower = cleaned.toLowerCase();
   if (
-    lower === "gemini-1.5-flash" ||
-    lower === "gemini-1.5-flash-latest" ||
-    lower === "gemini-1.5-pro" ||
+    lower.includes("1.5") ||
+    lower.includes("2.0") ||
+    lower.includes("2.5") ||
     lower === "gemini-pro" ||
+    lower === "gemini-pro-latest" ||
     lower === "gemini-flash"
   ) {
     return "gemini-flash-lite-latest";
   }
-  return requested.trim();
+  if (
+    lower === "gemini-flash-lite-latest" ||
+    lower === "gemini-flash-latest" ||
+    lower === "gemini-3.5-flash" ||
+    lower === "gemini-3.8-flash"
+  ) {
+    return lower;
+  }
+  return "gemini-flash-lite-latest";
 }
 
 /**
@@ -68,7 +78,7 @@ User message:
     console.warn("Fact extraction primary model attempt error, trying fallback:", err);
     try {
       const { object } = await generateObject({
-        model: google("gemini-2.5-flash"),
+        model: google("gemini-flash-latest"),
         maxRetries: 1,
         schema: ExtractedFactsSchema,
         prompt: `Extract up to 5 permanent, durable facts about the user: "${userMessage}"`,

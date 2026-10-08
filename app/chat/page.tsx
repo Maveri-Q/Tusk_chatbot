@@ -395,10 +395,13 @@ export default function ChatPage() {
       );
       persistSessions(updatedSessions);
 
-      // Refresh memories list to catch any new saves
+      // Refresh memories list to catch any new saves (dual staggered refresh for async Walrus write)
       setTimeout(() => {
         loadMemories(currentUser.id);
       }, 2500);
+      setTimeout(() => {
+        loadMemories(currentUser.id);
+      }, 6000);
     } catch (err: any) {
       console.error("Chat streaming error:", err);
       const errorMsgText = `⚠️ ${err.message || "Failed to communicate with model. Please try again."}`;

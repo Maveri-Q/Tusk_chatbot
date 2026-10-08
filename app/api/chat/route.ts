@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import {
   recallMemoriesSafely,
@@ -18,20 +18,55 @@ export const dynamic = "force-dynamic";
 
 /**
  * Normalizes user-specified or environment model IDs to valid, active Gemini endpoints.
+ * Protects against deprecated models (e.g. gemini-1.5-*, gemini-2.0-*, gemini-2.5-*, gemini-pro-*).
  */
-function normalizeModelId(requested?: string): string {
+export function normalizeModelId(requested?: string): string {
   if (!requested) return "gemini-flash-lite-latest";
-  const lower = requested.toLowerCase().trim();
+  const cleaned = requested.replace(/^["']|["']$/g, "").trim();
+  const lower = cleaned.toLowerCase();
+
+  // If user or environment specifies any retired/deprecated model
   if (
-    lower === "gemini-1.5-flash" ||
-    lower === "gemini-1.5-flash-latest" ||
-    lower === "gemini-1.5-pro" ||
+    lower.includes("1.5") ||
+    lower.includes("2.0") ||
+    lower.includes("2.5") ||
     lower === "gemini-pro" ||
+    lower === "gemini-pro-latest" ||
     lower === "gemini-flash"
   ) {
     return "gemini-flash-lite-latest";
   }
-  return requested.trim();
+
+  // Known verified active models
+  if (
+    lower === "gemini-flash-lite-latest" ||
+    lower === "gemini-flash-latest" ||
+    lower === "gemini-3.5-flash" ||
+    lower === "gemini-3.8-flash"
+  ) {
+    return lower;
+  }
+
+  // Safe fallback for any unknown string
+  return "gemini-flash-lite-latest";
+}
+
+/**
+ * Returns prioritized model fallback cascade in order of speed and stability.
+ */
+function getModelCascade(primary: string): string[] {
+  const verifiedList = [
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+    "gemini-3.5-flash",
+  ];
+  const cascade = [primary];
+  for (const m of verifiedList) {
+    if (!cascade.includes(m)) {
+      cascade.push(m);
+    }
+  }
+  return cascade;
 }
 
 export async function POST(req: Request) {
@@ -192,24 +227,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // 5. Stream response with high-speed Gemini with automatic resilience
-    let result;
-    try {
-      result = streamText({
-        model: google(modelId),
-        system: systemPrompt,
-        messages: validMessages,
-        maxRetries: 2,
-      });
-    } catch (e) {
-      console.warn(`Primary model ${modelId} failed, falling back to gemini-2.5-flash:`, e);
-      result = streamText({
-        model: google("gemini-2.5-flash"),
-        system: systemPrompt,
-        messages: validMessages,
-        maxRetries: 2,
-      });
-    }
+    // 5. Get model cascade
+    const candidateModels = getModelCascade(modelId);
 
     // 6. Background Asynchronous Fact Extraction and Walrus Storage
     if (memoryEnabled && lastUserMsg.trim()) {
@@ -251,30 +270,84 @@ export async function POST(req: Request) {
       })();
     }
 
-    // 7. Robust error-capturing stream pipe: ensures tokens stream and errors are transparent
+    // 7. Multi-model resilient streaming engine with zero-token auto-recovery
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        let chunkCount = 0;
-        try {
-          for await (const chunk of result.textStream) {
-            chunkCount++;
-            controller.enqueue(encoder.encode(chunk));
+        let chunksSent = 0;
+        let lastError: any = null;
+
+        // Try streaming candidates in priority cascade
+        for (const candidate of candidateModels) {
+          if (chunksSent > 0) break;
+
+          try {
+            let candidateError: any = null;
+            const result = streamText({
+              model: google(candidate),
+              system: systemPrompt,
+              messages: validMessages,
+              maxRetries: 1,
+              onError: ({ error }) => {
+                candidateError = error;
+              },
+            });
+
+            for await (const chunk of result.textStream) {
+              chunksSent++;
+              controller.enqueue(encoder.encode(chunk));
+            }
+
+            // If tokens were emitted and no error aborted it, stream finished successfully
+            if (chunksSent > 0 && !candidateError) {
+              controller.close();
+              return;
+            }
+
+            if (candidateError) {
+              lastError = candidateError;
+              console.warn(`Model candidate ${candidate} error:`, candidateError?.message);
+            }
+          } catch (modelErr: any) {
+            lastError = modelErr;
+            console.warn(`Model candidate ${candidate} threw:`, modelErr?.message);
           }
-          if (chunkCount === 0) {
-            controller.enqueue(
-              encoder.encode("I received your message, but the model generated 0 tokens. Please check your model settings.")
-            );
-          }
-          controller.close();
-        } catch (streamErr: any) {
-          console.error("AI text stream error:", streamErr);
-          const errorNotice = chunkCount > 0
-            ? `\n\n⚠️ [Streaming disconnected: ${streamErr?.message || "connection error"}]`
-            : `⚠️ AI Error: ${streamErr?.message || "Model failed to generate response. Please verify your Google Gemini API key and model quota."}`;
-          controller.enqueue(encoder.encode(errorNotice));
-          controller.close();
         }
+
+        // Secondary Fallback: Non-streaming generateText if streaming produced 0 chunks
+        if (chunksSent === 0) {
+          try {
+            console.warn("Stream yielded 0 chunks. Attempting generateText fallback...");
+            const fallbackRes = await generateText({
+              model: google("gemini-flash-lite-latest"),
+              system: systemPrompt,
+              messages: validMessages,
+            });
+
+            if (fallbackRes.text && fallbackRes.text.trim().length > 0) {
+              controller.enqueue(encoder.encode(fallbackRes.text));
+              controller.close();
+              return;
+            }
+          } catch (fallbackErr: any) {
+            lastError = fallbackErr;
+            console.error("generateText fallback failed:", fallbackErr?.message);
+          }
+        }
+
+        // Tertiary: Transparent diagnostic error if all models fail
+        if (chunksSent === 0) {
+          const detail =
+            lastError?.message ||
+            "Unable to generate response from Google Gemini. Please verify your GOOGLE_GENERATIVE_AI_API_KEY and model quota.";
+          controller.enqueue(
+            encoder.encode(
+              `⚠️ AI Model Error: ${detail}\n\nPlease check your Google Gemini API key or quota settings in your Vercel deployment dashboard.`
+            )
+          );
+        }
+
+        controller.close();
       },
     });
 
