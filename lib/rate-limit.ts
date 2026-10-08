@@ -15,7 +15,7 @@ if (hasUpstash) {
 
   ratelimitInstance = new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(20, "1 m"), // 20 messages per minute
+    limiter: Ratelimit.slidingWindow(60, "1 m"), // 60 messages per minute
     prefix: "tusk:rl",
     analytics: false,
   });
@@ -40,20 +40,20 @@ export async function checkRateLimit(
     }
   }
 
-  // Fallback: 20 requests per minute
+  // Fallback: 60 requests per minute
   const now = Date.now();
   const windowMs = 60 * 1000;
   const record = localLimits.get(identifier);
 
   if (!record || now > record.resetAt) {
     localLimits.set(identifier, { count: 1, resetAt: now + windowMs });
-    return { success: true, remaining: 19 };
+    return { success: true, remaining: 59 };
   }
 
-  if (record.count >= 20) {
+  if (record.count >= 60) {
     return { success: false, remaining: 0 };
   }
 
   record.count += 1;
-  return { success: true, remaining: 20 - record.count };
+  return { success: true, remaining: 60 - record.count };
 }

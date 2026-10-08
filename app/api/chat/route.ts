@@ -13,7 +13,7 @@ import { screenReadMemory, screenWriteFact } from "@/lib/firewall";
 import { extractDurableFacts } from "@/lib/extract";
 import { buildSystemPrompt } from "@/lib/prompts";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 /**
@@ -158,13 +158,13 @@ export async function POST(req: Request) {
 
     // 2. Read-Side Memory Recall & Firewall (cross-chat durable memory)
     if (memoryEnabled) {
-      // Query-specific semantic matches
-      const recalled = recallQuery.trim()
-        ? await recallMemoriesSafely(recallQuery, namespace, 8, 0.95)
-        : [];
-
-      // Complete profile of all durable memories previously saved for this user
-      const allDurable = await getAllUserMemories(namespace);
+      // Parallel recall: query-specific matches and background durable facts execute concurrently
+      const [recalled, allDurable] = await Promise.all([
+        recallQuery.trim()
+          ? recallMemoriesSafely(recallQuery, namespace, 8, 0.95)
+          : Promise.resolve([]),
+        getAllUserMemories(namespace),
+      ]);
 
       // Merge: specific query matches first, followed by all background user facts
       const mergedItems: RecallResultItem[] = [...recalled];

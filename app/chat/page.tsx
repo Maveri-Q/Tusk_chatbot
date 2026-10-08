@@ -298,30 +298,59 @@ export default function ChatPage() {
     }
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: currentMsgs.map((m) => ({
-            role: m.role,
-            content: m.content,
-            attachments: m.attachments,
-          })),
-          memoryEnabled,
-          userId: currentUser.id,
-          userName: currentUser.name,
-          userEmail: currentUser.email,
-          isLoggedIn: currentUser.id !== "guest",
-        }),
-      });
+      const requestPayload = {
+        messages: currentMsgs.map((m) => ({
+          role: m.role,
+          content: m.content,
+          attachments: m.attachments,
+        })),
+        memoryEnabled,
+        userId: currentUser.id,
+        userName: currentUser.name,
+        userEmail: currentUser.email,
+        isLoggedIn: currentUser.id !== "guest",
+      };
+
+      const doFetch = async () => {
+        return await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestPayload),
+        });
+      };
+
+      let response = await doFetch();
+
+      // Automatic retry once after 800ms for transient 500/502/503/504 serverless timeouts
+      if (!response.ok && [500, 502, 503, 504].includes(response.status)) {
+        await new Promise((r) => setTimeout(r, 800));
+        try {
+          const retryRes = await doFetch();
+          if (retryRes.ok) {
+            response = retryRes;
+          }
+        } catch (_) {}
+      }
 
       if (!response.ok) {
-        let errorDetail = response.statusText;
+        let errorDetail = "";
         try {
-          const errJson = await response.json();
-          if (errJson?.error) errorDetail = errJson.error;
+          const textBody = await response.text();
+          try {
+            const errJson = JSON.parse(textBody);
+            errorDetail = errJson?.error || errJson?.message || "";
+          } catch {
+            errorDetail = textBody.slice(0, 150);
+          }
         } catch (_) {}
-        throw new Error(errorDetail || "Chat request failed");
+
+        if (response.status === 429) {
+          throw new Error("Rate limit reached. Please wait a few seconds before sending another message.");
+        }
+        if (response.status === 504) {
+          throw new Error("Server request timed out. Please try sending your message again.");
+        }
+        throw new Error(errorDetail || `Request failed with status ${response.status}`);
       }
 
       if (!response.body) {

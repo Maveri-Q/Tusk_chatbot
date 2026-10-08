@@ -172,7 +172,7 @@ export async function getAllUserMemories(namespace: string): Promise<RecallResul
         maxDistance: 1.0,
       });
       const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
-        setTimeout(() => resolve({ results: [] }), 2500)
+        setTimeout(() => resolve({ results: [] }), 1200)
       );
       const res: any = await Promise.race([walrusPromise, timeoutPromise]);
       for (const w of res?.results || []) {
@@ -267,9 +267,9 @@ export async function recallMemoriesSafely(
       maxDistance,
     });
 
-    // 4000ms timeout guard so Walrus has enough time to respond over Sui network
+    // 1200ms timeout guard so Walrus has enough time to respond without risking serverless timeout
     const timeoutPromise = new Promise<{ results: any[] }>((resolve) =>
-      setTimeout(() => resolve({ results: [] }), 4000)
+      setTimeout(() => resolve({ results: [] }), 1200)
     );
 
     const res: any = await Promise.race([recallPromise, timeoutPromise]);
